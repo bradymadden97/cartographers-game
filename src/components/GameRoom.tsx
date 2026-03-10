@@ -9,6 +9,7 @@ interface Props {
   roomId: string;
   playerName: string;
   onLeave: () => void;
+  onLogout: () => void;
 }
 
 const SEASON_LABELS: Record<string, string> = {
@@ -18,7 +19,7 @@ const SEASON_LABELS: Record<string, string> = {
   winter: '❄️ Winter',
 };
 
-export function GameRoom({ roomId, playerName, onLeave }: Props) {
+export function GameRoom({ roomId, playerName, onLeave, onLogout }: Props) {
   const { gameState, status, send } = useGameSocket(roomId, playerName);
   const { placementState, dispatch } = usePlacement();
 
@@ -85,6 +86,7 @@ export function GameRoom({ roomId, playerName, onLeave }: Props) {
         <button className="btn-secondary" onClick={onLeave}>← Leave</button>
         <span className="room-code">Room: {roomId}</span>
         <span className={`status status-${status}`}>{status}</span>
+        <button className="btn-secondary btn-sm" onClick={onLogout}>Log out</button>
       </header>
 
       {gameState ? (

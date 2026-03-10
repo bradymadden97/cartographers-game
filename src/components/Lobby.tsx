@@ -1,12 +1,15 @@
 import { useState } from 'react';
 
 interface Props {
+  initialName: string;
+  initialRoomCode: string;
   onJoin: (roomId: string, playerName: string) => void;
+  onLogout?: () => void;
 }
 
-export function Lobby({ onJoin }: Props) {
-  const [name, setName] = useState('');
-  const [roomCode, setRoomCode] = useState('');
+export function Lobby({ initialName, initialRoomCode, onJoin, onLogout }: Props) {
+  const [name, setName] = useState(initialName);
+  const [roomCode, setRoomCode] = useState(initialRoomCode);
 
   function handleCreate() {
     if (!name.trim()) return;
@@ -23,14 +26,22 @@ export function Lobby({ onJoin }: Props) {
     <div className="lobby">
       <h1>Cartographers</h1>
       <div className="card">
-        <input
-          type="text"
-          placeholder="Your name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          maxLength={20}
-          autoComplete="off"
-        />
+        <div className="name-row">
+          <input
+            type="text"
+            placeholder="Your name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
+            maxLength={20}
+            autoComplete="off"
+          />
+          {onLogout && (
+            <button className="btn-secondary btn-sm" onClick={onLogout} title="Clear saved name and start fresh">
+              Log out
+            </button>
+          )}
+        </div>
         <button onClick={handleCreate} disabled={!name.trim()}>
           Create Room
         </button>
@@ -40,6 +51,7 @@ export function Lobby({ onJoin }: Props) {
           placeholder="Room code"
           value={roomCode}
           onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
+          onKeyDown={(e) => e.key === 'Enter' && handleJoin()}
           maxLength={6}
           autoComplete="off"
         />
