@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import type { ClientMessage, GameState, ServerMessage } from '../../worker/types';
+import type { ClientMessage, GameState, ServerMessage } from '../../shared/types';
+import type { GameTransport } from '../../shared/transport';
+import { FakeWebSocket } from '../lib/local-transport';
 import { getSessionId } from '../session';
 
 function getWsUrl(roomId: string): string {
@@ -10,16 +12,25 @@ function getWsUrl(roomId: string): string {
   return `${proto}://${location.host}/ws/${roomId}${params}`;
 }
 
+// WebSocket ready-state constants (same values as the DOM WebSocket spec).
+const WS_OPEN = 1;
+const WS_CLOSING = 2;
+const WS_CLOSED = 3;
+
 type SocketStatus = 'connecting' | 'connected' | 'disconnected';
 
-export function useGameSocket(roomId: string, playerName: string) {
+export function useGameSocket(
+  roomId: string,
+  playerName: string,
+  mode: 'remote' | 'local' = 'remote',
+) {
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [status, setStatus] = useState<SocketStatus>('connecting');
   const [error, setError] = useState<string | null>(null);
-  const wsRef = useRef<WebSocket | null>(null);
+  const transportRef = useRef<GameTransport | null>(null);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reconnectAttemptRef = useRef(0);
-  // Keep refs in sync so async callbacks (timers, visibilitychange) always use latest values
+  // Keep refs in sync so async callbacks always use the latest values.
   const roomIdRef = useRef(roomId);
   const playerNameRef = useRef(playerName);
   roomIdRef.current = roomId;
@@ -28,31 +39,43 @@ export function useGameSocket(roomId: string, playerName: string) {
   useEffect(() => {
     let destroyed = false;
 
+    function createTransport(): GameTransport {
+      if (mode === 'local') {
+        // Offline / single-player: game engine runs in a local Web Worker.
+        return new FakeWebSocket(roomIdRef.current, getSessionId());
+      }
+      // Multiplayer: real WebSocket to the Cloudflare Durable Object.
+      // WebSocket satisfies the GameTransport interface structurally.
+      return new WebSocket(getWsUrl(roomIdRef.current)) as unknown as GameTransport;
+    }
+
     function connect() {
       if (destroyed) return;
 
-      // Tear down any stale connection without triggering its onclose reconnect
-      const stale = wsRef.current;
+      // Tear down any stale transport without triggering its onclose reconnect.
+      const stale = transportRef.current;
       if (stale) {
         stale.onclose = null;
         stale.onerror = null;
         stale.onopen = null;
         stale.onmessage = null;
-        if (stale.readyState !== WebSocket.CLOSED) stale.close();
+        if (stale.readyState !== WS_CLOSED) stale.close();
       }
 
       setStatus('connecting');
-      const ws = new WebSocket(getWsUrl(roomIdRef.current));
-      wsRef.current = ws;
+      const transport = createTransport();
+      transportRef.current = transport;
 
-      ws.onopen = () => {
+      transport.onopen = () => {
         if (destroyed) return;
         reconnectAttemptRef.current = 0;
         setStatus('connected');
-        ws.send(JSON.stringify({ type: 'join', name: playerNameRef.current } satisfies ClientMessage));
+        transport.send(
+          JSON.stringify({ type: 'join', name: playerNameRef.current } satisfies ClientMessage),
+        );
       };
 
-      ws.onmessage = (event) => {
+      transport.onmessage = (event) => {
         if (destroyed) return;
         const msg: ServerMessage = JSON.parse(event.data as string);
         if (msg.type === 'game_state') {
@@ -62,16 +85,17 @@ export function useGameSocket(roomId: string, playerName: string) {
         }
       };
 
-      ws.onclose = () => {
+      transport.onclose = () => {
         if (destroyed) return;
         setStatus('disconnected');
-        scheduleReconnect();
+        // Local transport doesn't reconnect — the worker lives with the tab.
+        if (mode === 'remote') scheduleReconnect();
       };
 
-      ws.onerror = () => {
+      transport.onerror = () => {
         if (destroyed) return;
         setStatus('disconnected');
-        // onclose fires after onerror, so reconnect is handled there
+        // onclose fires after onerror, reconnect is handled there.
       };
     }
 
@@ -87,11 +111,11 @@ export function useGameSocket(roomId: string, playerName: string) {
     }
 
     function handleVisibilityChange() {
-      if (document.visibilityState !== 'visible') return;
-      const ws = wsRef.current;
-      const isGone = !ws || ws.readyState === WebSocket.CLOSED || ws.readyState === WebSocket.CLOSING;
+      if (document.visibilityState !== 'visible' || mode !== 'remote') return;
+      const t = transportRef.current;
+      const isGone = !t || t.readyState === WS_CLOSED || t.readyState === WS_CLOSING;
       if (isGone) {
-        // Cancel any pending backoff timer and reconnect immediately
+        // Cancel any pending backoff timer and reconnect immediately.
         if (reconnectTimerRef.current) {
           clearTimeout(reconnectTimerRef.current);
           reconnectTimerRef.current = null;
@@ -111,17 +135,17 @@ export function useGameSocket(roomId: string, playerName: string) {
         clearTimeout(reconnectTimerRef.current);
         reconnectTimerRef.current = null;
       }
-      const ws = wsRef.current;
-      if (ws) {
-        ws.onclose = null; // prevent reconnect on intentional teardown
-        ws.close();
+      const t = transportRef.current;
+      if (t) {
+        t.onclose = null; // prevent reconnect on intentional teardown
+        t.close();
       }
     };
-  }, [roomId, playerName]);
+  }, [roomId, playerName, mode]);
 
   function send(msg: ClientMessage) {
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify(msg));
+    if (transportRef.current?.readyState === WS_OPEN) {
+      transportRef.current.send(JSON.stringify(msg));
     }
   }
 

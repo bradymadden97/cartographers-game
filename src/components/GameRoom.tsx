@@ -22,7 +22,7 @@ const SEASON_LABELS: Record<string, string> = {
 };
 
 export function GameRoom({ player, room, onLeave, onLogout }: Props) {
-  const { gameState, status, error, send } = useGameSocket(room.roomId, player.name);
+  const { gameState, status, error, send } = useGameSocket(room.roomId, player.name, room.mode);
   const { placementState, dispatch } = usePlacement();
   const [scoreOpen, setScoreOpen] = useState(false);
 
@@ -33,12 +33,14 @@ export function GameRoom({ player, room, onLeave, onLogout }: Props) {
   // Keep URL in sync with game phase without triggering a re-mount
   useEffect(() => {
     if (!gameState) return;
-    const segment = gameState.phase === 'playing' ? 'game' : 'lobby';
-    const target = `/${segment}/${room.roomId}`;
+    const target =
+      room.mode === 'local'
+        ? `/solo/${room.roomId}`
+        : `/${gameState.phase === 'playing' ? 'game' : 'lobby'}/${room.roomId}`;
     if (window.location.pathname !== target) {
       history.replaceState(null, '', target);
     }
-  }, [gameState?.phase, room.roomId]);
+  }, [gameState?.phase, room.roomId, room.mode]);
 
   // When a new round starts, feed the card into the placement state machine
   useEffect(() => {
