@@ -71,9 +71,8 @@ export function isValidPlacement(
     // Cannot place on mountains
     if (cell.terrain === 'mountain') return false;
 
-    // Cannot place on already-occupied cells, UNLESS the cell is a ruins marker
-    // (ruins cells may have terrain placed on them — the isRuins flag persists)
-    if (cell.terrain !== 'empty' && !cell.isRuins) return false;
+    // Cannot place on already-occupied cells
+    if (cell.terrain !== 'empty') return false;
   }
 
   return true;
