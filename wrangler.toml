@@ -3,7 +3,7 @@ main = "worker/index.ts"
 compatibility_date = "2025-01-01"
 compatibility_flags = ["nodejs_compat"]
 
-assets = { directory = "dist" }
+assets = { directory = "dist", binding = "ASSETS" }
 
 [[durable_objects.bindings]]
 name = "GAME_ROOM"
