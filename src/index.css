@@ -333,30 +333,14 @@ main {
   gap: 0;
 }
 
-/* Terrain button */
+/* Terrain button — shows a TerrainCell SVG */
 .card-toolbar__terrain {
-  position: relative;
-  gap: 4px;
+  gap: 0;
 }
 
 .card-toolbar__terrain:disabled {
   opacity: 0.35;
   cursor: default;
-}
-
-.card-toolbar__terrain-swatch {
-  display: block;
-  width: 24px;
-  height: 24px;
-  border-radius: 4px;
-  background: var(--terrain-color, #888);
-  border: 1px solid rgba(255,255,255,0.15);
-}
-
-.card-toolbar__terrain-label {
-  font-size: 0.65rem;
-  color: var(--text-muted);
-  line-height: 1;
 }
 
 /* Rotate / Flip icon buttons */
@@ -399,11 +383,6 @@ main {
 .terrain-picker__btn--selected {
   border-color: var(--terrain-color, var(--accent));
   background: #1f1408;
-}
-
-.terrain-picker__emoji {
-  font-size: 1.5rem;
-  line-height: 1;
 }
 
 .terrain-picker__name {

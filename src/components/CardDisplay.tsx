@@ -1,66 +1,58 @@
 import { useState } from 'react';
 import type { AmbushCard, Card, ExploreCard, ShapeCoords, TerrainType } from '../../worker/types';
 import { getVariants } from '../lib/shapes';
+import { TerrainCellContents, TerrainCell } from '../lib/terrainIcons';
 
-// ── Terrain palette ──────────────────────────────────────────────────────────
-
-const TERRAIN_COLORS: Record<string, string> = {
-  forest:   '#2d6a4f',
-  village:  '#b5451b',
-  farm:     '#c9a227',
-  water:    '#2563a8',
-  monster:  '#7b2d8b',
-  mountain: '#6b7280',
-  empty:    '#2a2f3d',
-  ruins:    '#78523b',
-};
-
-const TERRAIN_EMOJI: Record<string, string> = {
-  forest:  '🌲',
-  water:   '💧',
-  farm:    '🌾',
-  village: '🏠',
-  monster: '👾',
-};
+// ── Terrain picker options ────────────────────────────────────────────────────
 
 const PICKER_TERRAINS: TerrainType[] = ['forest', 'water', 'farm', 'village', 'monster'];
+const TERRAIN_LABEL: Partial<Record<TerrainType, string>> = {
+  forest: 'Forest', water: 'Water', farm: 'Farm', village: 'Village', monster: 'Monster',
+};
 
-// ── Mini shape preview ───────────────────────────────────────────────────────
+// ── Mini shape grid (SVG) ────────────────────────────────────────────────────
+// Each filled cell renders the full terrain icon scaled down from 32×32.
 
-function MiniShapeGrid({ coords, color }: { coords: ShapeCoords; color: string }) {
-  if (coords.length === 0) return null;
+const MINI_CELL = 14; // px per cell in the preview
+
+function MiniShapeGrid({ coords, terrain }: { coords: ShapeCoords; terrain: TerrainType }) {
+  if (!coords.length) return null;
 
   const rows = coords.map(([r]) => r);
   const cols = coords.map(([, c]) => c);
   const maxR = Math.max(...rows);
   const maxC = Math.max(...cols);
   const cellSet = new Set(coords.map(([r, c]) => `${r},${c}`));
-  const CELL = 13;
+  const scale = MINI_CELL / 32;
+  const W = (maxC + 1) * MINI_CELL;
+  const H = (maxR + 1) * MINI_CELL;
 
   return (
-    <div
-      style={{
-        display: 'inline-grid',
-        gridTemplateColumns: `repeat(${maxC + 1}, ${CELL}px)`,
-        gridTemplateRows: `repeat(${maxR + 1}, ${CELL}px)`,
-        gap: '1px',
-      }}
+    <svg
+      viewBox={`0 0 ${W} ${H}`}
+      width={W}
+      height={H}
+      style={{ display: 'block', maxWidth: '100%', maxHeight: 48, overflow: 'visible' }}
+      aria-hidden
     >
+      {/* Ghost outlines for empty cells */}
       {Array.from({ length: maxR + 1 }, (_, r) =>
-        Array.from({ length: maxC + 1 }, (_, c) => (
-          <div
-            key={`${r},${c}`}
-            style={{
-              width: CELL,
-              height: CELL,
-              backgroundColor: cellSet.has(`${r},${c}`) ? color : 'transparent',
-              borderRadius: '2px',
-              opacity: cellSet.has(`${r},${c}`) ? 1 : 0,
-            }}
-          />
-        )),
+        Array.from({ length: maxC + 1 }, (_, c) =>
+          !cellSet.has(`${r},${c}`) ? (
+            <rect key={`e${r},${c}`}
+              x={c * MINI_CELL} y={r * MINI_CELL}
+              width={MINI_CELL} height={MINI_CELL}
+              fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth={0.5} />
+          ) : null,
+        ),
       )}
-    </div>
+      {/* Filled cells with terrain icon */}
+      {coords.map(([r, c]) => (
+        <g key={`${r},${c}`} transform={`translate(${c * MINI_CELL},${r * MINI_CELL}) scale(${scale})`}>
+          <TerrainCellContents terrain={terrain} x={0} y={0} strokeColor="rgba(255,255,255,0.2)" />
+        </g>
+      ))}
+    </svg>
   );
 }
 
@@ -89,11 +81,10 @@ function TerrainPicker({
             <button
               key={t}
               className={`terrain-picker__btn${t === current ? ' terrain-picker__btn--selected' : ''}`}
-              style={{ '--terrain-color': TERRAIN_COLORS[t] } as React.CSSProperties}
               onClick={() => { onSelect(t); onClose(); }}
             >
-              <span className="terrain-picker__emoji">{TERRAIN_EMOJI[t]}</span>
-              <span className="terrain-picker__name">{t}</span>
+              <TerrainCell terrain={t} size={40} />
+              <span className="terrain-picker__name">{TERRAIN_LABEL[t]}</span>
             </button>
           ))}
         </div>
@@ -125,20 +116,17 @@ export function CardDisplay({
   const ambushCard = isAmbush ? (card as AmbushCard) : null;
   const exploreCard = !isAmbush ? (card as ExploreCard) : null;
 
-  // Local terrain override (visual only for now; logic wired in future)
   const [pickerOpen, setPickerOpen] = useState(false);
   const [overrideTerrain, setOverrideTerrain] = useState<TerrainType | null>(null);
 
-  const baseTerrain = overrideTerrain ?? card.terrain;
-  const terrainColor = TERRAIN_COLORS[baseTerrain] ?? '#888';
+  const displayTerrain: TerrainType = overrideTerrain ?? card.terrain;
 
-  // Shape variants for display
   const shapes: ShapeCoords[] = ambushCard
     ? [ambushCard.shape]
     : (exploreCard?.shapes ?? []);
 
   const shapeVariants = shapes.map((s) => getVariants(s));
-  const activeVariantCoords = shapeVariants[selectedShapeIndex]?.[
+  const activeVariant = shapeVariants[selectedShapeIndex]?.[
     variantIndex % (shapeVariants[selectedShapeIndex]?.length ?? 1)
   ] ?? shapes[0] ?? [];
 
@@ -148,15 +136,14 @@ export function CardDisplay({
       <div className="card-strip">
         <span className="card-strip__name">{card.name}</span>
         <span className="card-strip__time">⏱ {card.timeCost}</span>
-        {isAmbush && <span className="card-strip__ambush">Ambush — place on opponent</span>}
+        {isAmbush && <span className="card-strip__ambush">Place on opponent's map</span>}
       </div>
 
       {/* 5-button toolbar */}
       <div className="card-toolbar">
-
-        {/* Shape buttons (1 or 2) */}
+        {/* Shape buttons */}
         {shapes.map((shape, i) => {
-          const preview = i === selectedShapeIndex ? activeVariantCoords : shapeVariants[i]?.[0] ?? shape;
+          const preview = i === selectedShapeIndex ? activeVariant : (shapeVariants[i]?.[0] ?? shape);
           const isSelected = i === selectedShapeIndex;
           return (
             <button
@@ -166,25 +153,25 @@ export function CardDisplay({
               title={`Shape ${i + 1}`}
               aria-pressed={isSelected}
             >
-              <MiniShapeGrid coords={preview} color={terrainColor} />
+              <MiniShapeGrid coords={preview} terrain={displayTerrain} />
             </button>
           );
         })}
 
-        {/* If only 1 shape, add an empty placeholder so layout stays consistent */}
-        {shapes.length === 1 && <div className="card-toolbar__btn card-toolbar__placeholder" aria-hidden />}
+        {/* Placeholder if only 1 shape */}
+        {shapes.length === 1 && (
+          <div className="card-toolbar__btn card-toolbar__placeholder" aria-hidden />
+        )}
 
-        {/* Terrain picker button */}
+        {/* Terrain picker button — shows a TerrainCell preview */}
         <button
           className="card-toolbar__btn card-toolbar__terrain"
-          style={{ '--terrain-color': terrainColor } as React.CSSProperties}
           onClick={() => setPickerOpen(true)}
           title="Choose terrain"
-          aria-label={`Terrain: ${baseTerrain}`}
+          aria-label={`Terrain: ${displayTerrain}`}
           disabled={isAmbush}
         >
-          <span className="card-toolbar__terrain-swatch" />
-          <span className="card-toolbar__terrain-label">{TERRAIN_EMOJI[baseTerrain] ?? '?'}</span>
+          <TerrainCell terrain={displayTerrain} size={30} />
         </button>
 
         {/* Rotate */}
@@ -210,7 +197,7 @@ export function CardDisplay({
 
       {pickerOpen && (
         <TerrainPicker
-          current={baseTerrain as TerrainType}
+          current={displayTerrain}
           onSelect={setOverrideTerrain}
           onClose={() => setPickerOpen(false)}
         />
@@ -223,7 +210,8 @@ export function CardDisplay({
 
 function RotateIcon() {
   return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       <path d="M21 2v6h-6" />
       <path d="M3 12a9 9 0 0 1 15-6.7L21 8" />
       <path d="M3 22v-6h6" />
@@ -234,7 +222,8 @@ function RotateIcon() {
 
 function FlipIcon() {
   return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       <path d="M8 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h3" />
       <path d="M16 3h3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-3" />
       <line x1="12" y1="3" x2="12" y2="21" strokeDasharray="3 3" />
