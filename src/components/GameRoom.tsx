@@ -1,9 +1,10 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import type { PlacementPayload, PlayerInfo, PlayerState } from '../../worker/types';
 import { useGameSocket } from '../hooks/useGameSocket';
 import { usePlacement, getGhostInfo } from '../hooks/usePlacement';
 import { MapGrid } from './MapGrid';
 import { CardDisplay } from './CardDisplay';
+import { ScorePanel, CoinSVG } from './ScorePanel';
 import type { PlayerContext, RoomContext } from '../types';
 
 interface Props {
@@ -23,6 +24,7 @@ const SEASON_LABELS: Record<string, string> = {
 export function GameRoom({ player, room, onLeave, onLogout }: Props) {
   const { gameState, status, error, send } = useGameSocket(room.roomId, player.name);
   const { placementState, dispatch } = usePlacement();
+  const [scoreOpen, setScoreOpen] = useState(false);
 
   const myPlayer = gameState?.players.find((p: PlayerInfo) => p.id === player.id);
   const myState = myPlayer ? gameState?.playerStates[myPlayer.id] : undefined;
@@ -119,10 +121,30 @@ export function GameRoom({ player, room, onLeave, onLogout }: Props) {
           {/* Playing */}
           {gameState.phase === 'playing' && round && myGrid && (
             <div className="game-board">
+              {/* Sub-header: season/round info + coin counter + score button */}
               <div className="round-header">
-                <span>{SEASON_LABELS[round.season]}</span>
-                <span>Round {round.roundNumber}</span>
-                <span>Time: {round.elapsedTime} / {[8, 8, 7, 6][round.seasonIndex]}</span>
+                <div className="round-header__left">
+                  <span className="round-header__season">{SEASON_LABELS[round.season]}</span>
+                  <span className="round-header__round">Round {round.roundNumber}</span>
+                  <span className="round-header__time">
+                    {round.elapsedTime} / {[8, 8, 7, 6][round.seasonIndex]}
+                  </span>
+                </div>
+                {myState && (
+                  <div className="round-header__right">
+                    <div className="coin-badge">
+                      <CoinSVG size={18} />
+                      <span className="coin-badge__count">{myState.coins}</span>
+                    </div>
+                    <button
+                      className="score-btn btn-secondary"
+                      onClick={() => setScoreOpen(true)}
+                      aria-label="View season scores"
+                    >
+                      📊
+                    </button>
+                  </div>
+                )}
               </div>
 
               {card && (
@@ -175,8 +197,13 @@ export function GameRoom({ player, room, onLeave, onLogout }: Props) {
                 ))}
               </div>
 
-              {myState && (
-                <div className="coins">Coins: {myState.coins}</div>
+              {/* Score bottom sheet */}
+              {scoreOpen && myState && (
+                <ScorePanel
+                  playerState={myState}
+                  currentSeasonIndex={round.seasonIndex}
+                  onClose={() => setScoreOpen(false)}
+                />
               )}
             </div>
           )}
@@ -185,17 +212,23 @@ export function GameRoom({ player, room, onLeave, onLogout }: Props) {
           {gameState.phase === 'finished' && (
             <div className="game-over">
               <h2>Game Over</h2>
-              <ul>
+              <div className="game-over__scores">
                 {gameState.players.map((p: PlayerInfo) => {
                   const ps: PlayerState | undefined = gameState.playerStates[p.id];
-                  const total = ps?.seasonScores.reduce((a: number, b: number) => a + b, 0) ?? 0;
-                  return (
-                    <li key={p.id}>
-                      {p.name}: {total} pts
-                    </li>
-                  );
+                  const isMe = p.id === player.id;
+                  return ps ? (
+                    <div key={p.id} className={`game-over__player${isMe ? ' game-over__player--me' : ''}`}>
+                      <div className="game-over__player-name">{p.name}{isMe ? ' (you)' : ''}</div>
+                      <ScorePanel
+                        playerState={ps}
+                        currentSeasonIndex={-1}
+                        inline
+                        onClose={() => {}}
+                      />
+                    </div>
+                  ) : null;
                 })}
-              </ul>
+              </div>
               <button onClick={onLeave}>Back to Lobby</button>
             </div>
           )}
