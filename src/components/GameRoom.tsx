@@ -65,6 +65,7 @@ export function GameRoom({ player, room, onLeave, onLogout }: Props) {
       shapeIndex,
       variantIndex,
       origin: [anchorRow, anchorCol],
+      ...(overrideTerrain ? { terrain: overrideTerrain } : {}),
     };
 
     if (card.terrain === 'monster') {
