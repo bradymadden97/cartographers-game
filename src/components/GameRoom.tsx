@@ -4,11 +4,13 @@ import { useGameSocket } from '../hooks/useGameSocket';
 import { usePlacement, getGhostInfo } from '../hooks/usePlacement';
 import { MapGrid } from './MapGrid';
 import { CardDisplay } from './CardDisplay';
+import type { PlayerContext, RoomContext } from '../types';
 
 interface Props {
-  roomId: string;
-  playerName: string;
+  player: PlayerContext;
+  room: RoomContext;
   onLeave: () => void;
+  onLogout: () => void;
 }
 
 const SEASON_LABELS: Record<string, string> = {
@@ -18,13 +20,23 @@ const SEASON_LABELS: Record<string, string> = {
   winter: '❄️ Winter',
 };
 
-export function GameRoom({ roomId, playerName, onLeave }: Props) {
-  const { gameState, status, send } = useGameSocket(roomId, playerName);
+export function GameRoom({ player, room, onLeave, onLogout }: Props) {
+  const { gameState, status, send } = useGameSocket(room.roomId, player.name);
   const { placementState, dispatch } = usePlacement();
 
-  const myPlayer = gameState?.players.find((p: PlayerInfo) => p.name === playerName);
+  const myPlayer = gameState?.players.find((p: PlayerInfo) => p.id === player.id);
   const myState = myPlayer ? gameState?.playerStates[myPlayer.id] : undefined;
   const round = gameState?.round ?? null;
+
+  // Keep URL in sync with game phase without triggering a re-mount
+  useEffect(() => {
+    if (!gameState) return;
+    const segment = gameState.phase === 'playing' ? 'game' : 'lobby';
+    const target = `/${segment}/${room.roomId}`;
+    if (window.location.pathname !== target) {
+      history.replaceState(null, '', target);
+    }
+  }, [gameState?.phase, room.roomId]);
 
   // When a new round starts, feed the card into the placement state machine
   useEffect(() => {
@@ -52,8 +64,6 @@ export function GameRoom({ roomId, playerName, onLeave }: Props) {
     };
 
     if (card.terrain === 'monster') {
-      // For ambush cards, target the first opponent for now
-      // TODO: let player pick target
       const opponent = gameState?.players.find((p: PlayerInfo) => p.id !== myPlayer?.id);
       if (opponent) {
         send({ type: 'place_monster', targetPlayerId: opponent.id, payload });
@@ -83,8 +93,9 @@ export function GameRoom({ roomId, playerName, onLeave }: Props) {
     <div className="game-room">
       <header>
         <button className="btn-secondary" onClick={onLeave}>← Leave</button>
-        <span className="room-code">Room: {roomId}</span>
+        <span className="room-code">Room: {room.roomId}</span>
         <span className={`status status-${status}`}>{status}</span>
+        <button className="btn-secondary btn-sm" onClick={onLogout}>Log out</button>
       </header>
 
       {gameState ? (
@@ -95,7 +106,7 @@ export function GameRoom({ roomId, playerName, onLeave }: Props) {
               <h2>Players ({gameState.players.length})</h2>
               <ul>
                 {gameState.players.map((p: PlayerInfo) => (
-                  <li key={p.id} className={p.name === playerName ? 'me' : ''}>
+                  <li key={p.id} className={p.id === player.id ? 'me' : ''}>
                     {p.name}
                   </li>
                 ))}
@@ -107,14 +118,12 @@ export function GameRoom({ roomId, playerName, onLeave }: Props) {
           {/* Playing */}
           {gameState.phase === 'playing' && round && myGrid && (
             <div className="game-board">
-              {/* Round header */}
               <div className="round-header">
                 <span>{SEASON_LABELS[round.season]}</span>
                 <span>Round {round.roundNumber}</span>
                 <span>Time: {round.elapsedTime} / {[8, 8, 7, 6][round.seasonIndex]}</span>
               </div>
 
-              {/* Card display */}
               {card && (
                 <CardDisplay
                   card={card}
@@ -126,7 +135,6 @@ export function GameRoom({ roomId, playerName, onLeave }: Props) {
                 />
               )}
 
-              {/* My map */}
               <MapGrid
                 grid={myGrid}
                 ghostCoords={ghostCoords}
@@ -143,7 +151,6 @@ export function GameRoom({ roomId, playerName, onLeave }: Props) {
                 }}
               />
 
-              {/* Confirm button */}
               {placementState.phase === 'confirm' && placementState.valid && (
                 <button className="btn-confirm" onClick={handleConfirm}>
                   Confirm Placement
@@ -156,7 +163,6 @@ export function GameRoom({ roomId, playerName, onLeave }: Props) {
                 <p className="placement-waiting">Waiting for other players…</p>
               )}
 
-              {/* Player status list */}
               <div className="placement-status">
                 {gameState.players.map((p: PlayerInfo) => (
                   <span
@@ -168,7 +174,6 @@ export function GameRoom({ roomId, playerName, onLeave }: Props) {
                 ))}
               </div>
 
-              {/* Coins */}
               {myState && (
                 <div className="coins">Coins: {myState.coins}</div>
               )}

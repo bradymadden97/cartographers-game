@@ -1,27 +1,55 @@
-import { useState } from 'react';
-import { Lobby } from './components/Lobby';
+import { usePathname, navigate } from './router';
+import { getSessionId, getSessionName, setSessionName, clearSession } from './session';
+import { Landing } from './components/Landing';
 import { GameRoom } from './components/GameRoom';
+import type { PlayerContext, RoomContext } from './types';
 
-type AppState =
-  | { view: 'lobby' }
-  | { view: 'game'; roomId: string; playerName: string };
+function parseRoute(pathname: string): { type: 'landing' } | { type: 'room'; roomId: string } | null {
+  if (pathname === '/') return { type: 'landing' };
+  const m = pathname.match(/^\/(lobby|game)\/([A-Z0-9]{6})$/i);
+  if (m) return { type: 'room', roomId: m[2].toUpperCase() };
+  return null;
+}
 
 export default function App() {
-  const [state, setState] = useState<AppState>({ view: 'lobby' });
+  const pathname = usePathname();
+  const route = parseRoute(pathname);
+  const savedName = getSessionName();
 
-  if (state.view === 'game') {
+  if (!route) {
+    navigate('/');
+    return null;
+  }
+
+  if (route.type === 'room') {
+    if (!savedName) {
+      navigate(`/?join=${route.roomId}`);
+      return null;
+    }
+    const player: PlayerContext = { id: getSessionId(), name: savedName };
+    const room: RoomContext = { roomId: route.roomId };
     return (
       <GameRoom
-        roomId={state.roomId}
-        playerName={state.playerName}
-        onLeave={() => setState({ view: 'lobby' })}
+        player={player}
+        room={room}
+        onLeave={() => navigate('/')}
+        onLogout={() => {
+          clearSession();
+          navigate('/');
+        }}
       />
     );
   }
 
+  const initialRoomCode = new URLSearchParams(window.location.search).get('join') ?? '';
   return (
-    <Lobby
-      onJoin={(roomId, playerName) => setState({ view: 'game', roomId, playerName })}
+    <Landing
+      initialName={savedName}
+      initialRoomCode={initialRoomCode}
+      onJoin={(roomId, playerName) => {
+        setSessionName(playerName);
+        navigate(`/lobby/${roomId}`);
+      }}
     />
   );
 }

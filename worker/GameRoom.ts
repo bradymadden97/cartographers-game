@@ -37,7 +37,6 @@ function buildDeck(): Card[] {
   const ambushes: Card[] = shuffle([...AMBUSH_CARDS]).slice(0, 4);
 
   // Insert each ambush at the end of each "season chunk"
-  // For simplicity: insert at positions that roughly split the deck into 4 seasons
   const chunkSize = Math.ceil(explores.length / 4);
   const deck: Card[] = [];
   for (let i = 0; i < 4; i++) {
@@ -62,6 +61,18 @@ export class GameRoom {
       phase: 'waiting',
       round: null,
     };
+
+    // Restore persisted state after hibernation
+    this.state.blockConcurrencyWhile(async () => {
+      const [savedState, savedDeck, savedDeckIndex] = await Promise.all([
+        this.state.storage.get<GameState>('gameState'),
+        this.state.storage.get<Card[]>('deck'),
+        this.state.storage.get<number>('deckIndex'),
+      ]);
+      if (savedState) this.gameState = savedState;
+      if (savedDeck) this.deck = savedDeck;
+      if (savedDeckIndex !== undefined) this.deckIndex = savedDeckIndex;
+    });
   }
 
   async fetch(request: Request): Promise<Response> {
@@ -72,7 +83,10 @@ export class GameRoom {
     const pair = new WebSocketPair();
     const [client, server] = Object.values(pair) as [WebSocket, WebSocket];
 
-    const playerId = crypto.randomUUID();
+    // Use the client-supplied session ID as the stable player identity.
+    // Falls back to a random UUID if not provided (e.g. direct API access).
+    const url = new URL(request.url);
+    const playerId = url.searchParams.get('session') ?? crypto.randomUUID();
     this.state.acceptWebSocket(server, [playerId]);
 
     return new Response(null, { status: 101, webSocket: client });
@@ -86,14 +100,22 @@ export class GameRoom {
 
       switch (msg.type) {
         case 'join': {
-          const player: PlayerInfo = { id: playerId, name: msg.name };
-          this.gameState.players.push(player);
-          this.gameState.playerStates[playerId] = {
-            info: player,
-            grid: createGrid(),
-            coins: 0,
-            seasonScores: [],
-          };
+          const existing = this.gameState.players.find((p) => p.id === playerId);
+          if (existing) {
+            // Reconnecting — update name in case it changed
+            existing.name = msg.name;
+            this.gameState.playerStates[playerId].info.name = msg.name;
+          } else {
+            const player: PlayerInfo = { id: playerId, name: msg.name };
+            this.gameState.players.push(player);
+            this.gameState.playerStates[playerId] = {
+              info: player,
+              grid: createGrid(),
+              coins: 0,
+              seasonScores: [],
+            };
+          }
+          await this.saveState();
           this.broadcast({ type: 'game_state', state: this.gameState });
           break;
         }
@@ -119,17 +141,18 @@ export class GameRoom {
 
           this.gameState.phase = 'playing';
           this.gameState.round = round;
+          await this.saveState();
           this.broadcast({ type: 'game_state', state: this.gameState });
           break;
         }
 
         case 'place_terrain': {
-          this.handlePlaceTerrain(ws, playerId, msg.payload);
+          await this.handlePlaceTerrain(ws, playerId, msg.payload);
           break;
         }
 
         case 'place_monster': {
-          this.handlePlaceMonster(ws, playerId, msg.targetPlayerId, msg.payload);
+          await this.handlePlaceMonster(ws, playerId, msg.targetPlayerId, msg.payload);
           break;
         }
       }
@@ -138,7 +161,7 @@ export class GameRoom {
     }
   }
 
-  private handlePlaceTerrain(ws: WebSocket, playerId: string, payload: PlacementPayload): void {
+  private async handlePlaceTerrain(ws: WebSocket, playerId: string, payload: PlacementPayload): Promise<void> {
     const { round } = this.gameState;
     if (!round || this.gameState.phase !== 'playing') return;
     if (round.placements[playerId] !== 'pending') return;
@@ -176,15 +199,16 @@ export class GameRoom {
 
     this.broadcast({ type: 'game_state', state: this.gameState });
 
-    if (this.allPlaced()) this.advanceRound();
+    if (this.allPlaced()) await this.advanceRound();
+    else await this.saveState();
   }
 
-  private handlePlaceMonster(
+  private async handlePlaceMonster(
     ws: WebSocket,
     playerId: string,
     targetPlayerId: string,
     payload: PlacementPayload,
-  ): void {
+  ): Promise<void> {
     const { round } = this.gameState;
     if (!round || this.gameState.phase !== 'playing') return;
     if (round.placements[playerId] !== 'pending') return;
@@ -219,7 +243,8 @@ export class GameRoom {
 
     this.broadcast({ type: 'game_state', state: this.gameState });
 
-    if (this.allPlaced()) this.advanceRound();
+    if (this.allPlaced()) await this.advanceRound();
+    else await this.saveState();
   }
 
   private allPlaced(): boolean {
@@ -228,7 +253,7 @@ export class GameRoom {
     return Object.values(round.placements).every((s) => s !== 'pending');
   }
 
-  private advanceRound(): void {
+  private async advanceRound(): Promise<void> {
     const { round } = this.gameState;
     if (!round) return;
 
@@ -244,6 +269,7 @@ export class GameRoom {
         // Game over
         this.gameState.phase = 'finished';
         this.gameState.round = null;
+        await this.saveState();
         this.broadcast({ type: 'game_state', state: this.gameState });
         return;
       }
@@ -263,6 +289,7 @@ export class GameRoom {
       // Deck exhausted — game over
       this.gameState.phase = 'finished';
       this.gameState.round = null;
+      await this.saveState();
       this.broadcast({ type: 'game_state', state: this.gameState });
       return;
     }
@@ -280,18 +307,32 @@ export class GameRoom {
       placements,
     };
 
+    await this.saveState();
     this.broadcast({ type: 'game_state', state: this.gameState });
   }
 
   async webSocketClose(ws: WebSocket): Promise<void> {
     const [playerId] = this.state.getTags(ws);
-    this.gameState.players = this.gameState.players.filter((p) => p.id !== playerId);
-    delete this.gameState.playerStates[playerId];
+    if (this.gameState.phase === 'waiting') {
+      // Remove player fully from the waiting room on disconnect
+      this.gameState.players = this.gameState.players.filter((p) => p.id !== playerId);
+      delete this.gameState.playerStates[playerId];
+      await this.saveState();
+    }
+    // During a game, keep player state so they can reconnect and resume
     this.broadcast({ type: 'game_state', state: this.gameState });
   }
 
   async webSocketError(ws: WebSocket): Promise<void> {
     await this.webSocketClose(ws);
+  }
+
+  private async saveState(): Promise<void> {
+    await Promise.all([
+      this.state.storage.put('gameState', this.gameState),
+      this.state.storage.put('deck', this.deck),
+      this.state.storage.put('deckIndex', this.deckIndex),
+    ]);
   }
 
   private broadcast(message: ServerMessage): void {

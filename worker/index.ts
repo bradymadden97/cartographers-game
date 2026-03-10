@@ -18,6 +18,11 @@ export default {
       return room.fetch(request);
     }
 
-    return env.ASSETS.fetch(request);
+    // Try static assets first; fall back to index.html for SPA routes
+    const response = await env.ASSETS.fetch(request);
+    if (response.status === 404) {
+      return env.ASSETS.fetch(new Request(new URL('/index.html', request.url)));
+    }
+    return response;
   },
 };

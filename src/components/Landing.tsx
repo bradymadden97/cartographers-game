@@ -4,10 +4,9 @@ interface Props {
   initialName: string;
   initialRoomCode: string;
   onJoin: (roomId: string, playerName: string) => void;
-  onLogout?: () => void;
 }
 
-export function Lobby({ initialName, initialRoomCode, onJoin, onLogout }: Props) {
+export function Landing({ initialName, initialRoomCode, onJoin }: Props) {
   const [name, setName] = useState(initialName);
   const [roomCode, setRoomCode] = useState(initialRoomCode);
 
@@ -26,22 +25,15 @@ export function Lobby({ initialName, initialRoomCode, onJoin, onLogout }: Props)
     <div className="lobby">
       <h1>Cartographers</h1>
       <div className="card">
-        <div className="name-row">
-          <input
-            type="text"
-            placeholder="Your name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
-            maxLength={20}
-            autoComplete="off"
-          />
-          {onLogout && (
-            <button className="btn-secondary btn-sm" onClick={onLogout} title="Clear saved name and start fresh">
-              Log out
-            </button>
-          )}
-        </div>
+        <input
+          type="text"
+          placeholder="Your name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
+          maxLength={20}
+          autoComplete="off"
+        />
         <button onClick={handleCreate} disabled={!name.trim()}>
           Create Room
         </button>
