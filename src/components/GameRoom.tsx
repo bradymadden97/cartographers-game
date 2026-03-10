@@ -160,8 +160,8 @@ export function GameRoom({ player, room, onLeave, onLogout }: Props) {
                   overrideTerrain={overrideTerrain}
                   onOverrideTerrain={setOverrideTerrain}
                   onSelectShape={(i) => dispatch({ type: 'SELECT_SHAPE', index: i })}
-                  onRotate={() => dispatch({ type: 'ROTATE' })}
-                  onReflect={() => dispatch({ type: 'REFLECT' })}
+                  onRotate={() => dispatch({ type: 'ROTATE', grid: myGrid })}
+                  onReflect={() => dispatch({ type: 'REFLECT', grid: myGrid })}
                 />
               )}
 

@@ -310,9 +310,11 @@ main {
   width: auto;
 }
 
-.card-toolbar__btn:hover:not(:disabled) {
-  background: var(--primary);
-  border-color: var(--accent);
+@media (hover: hover) {
+  .card-toolbar__btn:hover:not(:disabled) {
+    background: var(--primary);
+    border-color: var(--accent);
+  }
 }
 
 .card-toolbar__btn--active {
@@ -348,8 +350,10 @@ main {
   color: var(--text-muted);
 }
 
-.card-toolbar__icon:hover:not(:disabled) {
-  color: var(--text);
+@media (hover: hover) {
+  .card-toolbar__icon:hover:not(:disabled) {
+    color: var(--text);
+  }
 }
 
 /* --- Terrain picker drawer --- */

@@ -58,8 +58,8 @@ export type PlacementState =
 export type PlacementAction =
   | { type: 'CARD_RECEIVED'; card: Card }
   | { type: 'SELECT_SHAPE'; index: number }
-  | { type: 'ROTATE' }
-  | { type: 'REFLECT' }
+  | { type: 'ROTATE'; grid?: Grid }
+  | { type: 'REFLECT'; grid?: Grid }
   | { type: 'POINTER_MOVE'; row: number; col: number; grid: Grid }
   | { type: 'POINTER_UP'; row: number; col: number; grid: Grid }
   | { type: 'CONFIRM' }
@@ -126,13 +126,14 @@ function reducer(state: PlacementState, action: PlacementAction): PlacementState
       if (state.phase !== 'orient' && state.phase !== 'position' && state.phase !== 'confirm') return state;
       const count = computeVariantCount(state.card, state.shapeIndex);
       const nextVariant = (state.variantIndex + 1) % count;
-      if (state.phase === 'position') {
-        // Stay in position — ghost updates automatically via getGhostInfo
-        return { ...state, variantIndex: nextVariant };
-      }
       if (state.phase === 'confirm') {
-        // Drop anchor back to position so ghost shows new orientation
-        return { phase: 'position', card: state.card, shapeIndex: state.shapeIndex, variantIndex: nextVariant, anchorRow: state.anchorRow, anchorCol: state.anchorCol };
+        const resolved = computeResolved(state.card, state.shapeIndex, nextVariant, state.anchorRow, state.anchorCol);
+        const shape = getShapeCoords(state.card, state.shapeIndex);
+        const coords = getVariants(shape)[nextVariant % getVariants(shape).length];
+        const valid = action.grid
+          ? isValidPlacement(action.grid, coords, [state.anchorRow, state.anchorCol], getTerrain(state.card))
+          : false;
+        return { ...state, variantIndex: nextVariant, resolvedCoords: resolved, valid };
       }
       return { ...state, variantIndex: nextVariant };
     }
@@ -143,11 +144,14 @@ function reducer(state: PlacementState, action: PlacementAction): PlacementState
       const nextVariant = (state.variantIndex % 2 === 0)
         ? Math.min(state.variantIndex + 1, count - 1)
         : state.variantIndex - 1;
-      if (state.phase === 'position') {
-        return { ...state, variantIndex: nextVariant };
-      }
       if (state.phase === 'confirm') {
-        return { phase: 'position', card: state.card, shapeIndex: state.shapeIndex, variantIndex: nextVariant, anchorRow: state.anchorRow, anchorCol: state.anchorCol };
+        const resolved = computeResolved(state.card, state.shapeIndex, nextVariant, state.anchorRow, state.anchorCol);
+        const shape = getShapeCoords(state.card, state.shapeIndex);
+        const coords = getVariants(shape)[nextVariant % getVariants(shape).length];
+        const valid = action.grid
+          ? isValidPlacement(action.grid, coords, [state.anchorRow, state.anchorCol], getTerrain(state.card))
+          : false;
+        return { ...state, variantIndex: nextVariant, resolvedCoords: resolved, valid };
       }
       return { ...state, variantIndex: nextVariant };
     }
