@@ -97,8 +97,10 @@ function TerrainPicker({
 
 interface CardDisplayProps {
   card: Card;
-  selectedShapeIndex: number;
+  selectedShapeIndex: number; // -1 = nothing selected yet
   variantIndex: number;
+  overrideTerrain: TerrainType | null;
+  onOverrideTerrain: (t: TerrainType | null) => void;
   onSelectShape: (index: number) => void;
   onRotate: () => void;
   onReflect: () => void;
@@ -108,6 +110,8 @@ export function CardDisplay({
   card,
   selectedShapeIndex,
   variantIndex,
+  overrideTerrain,
+  onOverrideTerrain,
   onSelectShape,
   onRotate,
   onReflect,
@@ -117,7 +121,6 @@ export function CardDisplay({
   const exploreCard = !isAmbush ? (card as ExploreCard) : null;
 
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [overrideTerrain, setOverrideTerrain] = useState<TerrainType | null>(null);
 
   const displayTerrain: TerrainType = overrideTerrain ?? card.terrain;
 
@@ -143,8 +146,8 @@ export function CardDisplay({
       <div className="card-toolbar">
         {/* Shape buttons */}
         {shapes.map((shape, i) => {
-          const preview = i === selectedShapeIndex ? activeVariant : (shapeVariants[i]?.[0] ?? shape);
-          const isSelected = i === selectedShapeIndex;
+          const isSelected = selectedShapeIndex >= 0 && i === selectedShapeIndex;
+          const preview = isSelected ? activeVariant : (shapeVariants[i]?.[0] ?? shape);
           return (
             <button
               key={i}
@@ -198,7 +201,7 @@ export function CardDisplay({
       {pickerOpen && (
         <TerrainPicker
           current={displayTerrain}
-          onSelect={setOverrideTerrain}
+          onSelect={onOverrideTerrain}
           onClose={() => setPickerOpen(false)}
         />
       )}

@@ -25,6 +25,7 @@ export function GameRoom({ player, room, onLeave, onLogout }: Props) {
   const { gameState, status, error, send } = useGameSocket(room.roomId, player.name);
   const { placementState, dispatch } = usePlacement();
   const [scoreOpen, setScoreOpen] = useState(false);
+  const [overrideTerrain, setOverrideTerrain] = useState<import('../../worker/types').TerrainType | null>(null);
 
   const myPlayer = gameState?.players.find((p: PlayerInfo) => p.id === player.id);
   const myState = myPlayer ? gameState?.playerStates[myPlayer.id] : undefined;
@@ -40,10 +41,11 @@ export function GameRoom({ player, room, onLeave, onLogout }: Props) {
     }
   }, [gameState?.phase, room.roomId]);
 
-  // When a new round starts, feed the card into the placement state machine
+  // When a new round starts, feed the card into the placement state machine and reset overrides
   useEffect(() => {
     if (round?.currentCard) {
       dispatch({ type: 'CARD_RECEIVED', card: round.currentCard });
+      setOverrideTerrain(null);
     }
   }, [round?.roundNumber]);
 
@@ -78,11 +80,14 @@ export function GameRoom({ player, room, onLeave, onLogout }: Props) {
   }
 
   const myGrid = myState?.grid;
-  const { ghostCoords, ghostTerrain, ghostValid } = myGrid
+  const { ghostCoords, ghostTerrain: rawGhostTerrain, ghostValid } = myGrid
     ? getGhostInfo(placementState, myGrid)
     : { ghostCoords: undefined, ghostTerrain: undefined, ghostValid: undefined };
+  // Use the player's terrain override for the ghost preview if set
+  const ghostTerrain = overrideTerrain ?? rawGhostTerrain;
 
-  const shapeIndex = 'shapeIndex' in placementState ? placementState.shapeIndex : 0;
+  // -1 means no shape explicitly selected yet (select_shape phase)
+  const shapeIndex = 'shapeIndex' in placementState ? placementState.shapeIndex : -1;
   const variantIndex = 'variantIndex' in placementState ? placementState.variantIndex : 0;
   const card = 'card' in placementState ? placementState.card : null;
 
@@ -152,6 +157,8 @@ export function GameRoom({ player, room, onLeave, onLogout }: Props) {
                   card={card}
                   selectedShapeIndex={shapeIndex}
                   variantIndex={variantIndex}
+                  overrideTerrain={overrideTerrain}
+                  onOverrideTerrain={setOverrideTerrain}
                   onSelectShape={(i) => dispatch({ type: 'SELECT_SHAPE', index: i })}
                   onRotate={() => dispatch({ type: 'ROTATE' })}
                   onReflect={() => dispatch({ type: 'REFLECT' })}

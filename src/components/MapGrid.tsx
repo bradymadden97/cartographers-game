@@ -116,11 +116,11 @@ export function MapGrid({
               />
               {cell.isRuins && <RuinsIcon x={x} y={y} />}
               {showCoins && cell.coin && <CoinIcon x={x} y={y} />}
+              {/* Ghost fill — no stroke; outline drawn separately below */}
               {isGhost && (
                 <rect
                   x={x} y={y} width={CS} height={CS}
                   fill={ghostFill} fillOpacity={0.5}
-                  stroke={ghostStroke} strokeWidth={2}
                   pointerEvents="none"
                 />
               )}
@@ -128,6 +128,24 @@ export function MapGrid({
           );
         }),
       )}
+
+      {/* Ghost outline — only outer boundary edges, so lines don't double up */}
+      {ghostCoords && ghostCoords.flatMap(([r, c]) => {
+        const x = LW + c * CS;
+        const y = r * CS;
+        const edges: React.ReactElement[] = [];
+        const stroke = ghostStroke;
+        const sw = 2;
+        if (!ghostSet.has(`${r - 1},${c}`))
+          edges.push(<line key={`gt${r},${c}`} x1={x} y1={y}      x2={x + CS} y2={y}      stroke={stroke} strokeWidth={sw} pointerEvents="none" />);
+        if (!ghostSet.has(`${r + 1},${c}`))
+          edges.push(<line key={`gb${r},${c}`} x1={x} y1={y + CS} x2={x + CS} y2={y + CS} stroke={stroke} strokeWidth={sw} pointerEvents="none" />);
+        if (!ghostSet.has(`${r},${c - 1}`))
+          edges.push(<line key={`gl${r},${c}`} x1={x}      y1={y} x2={x}      y2={y + CS} stroke={stroke} strokeWidth={sw} pointerEvents="none" />);
+        if (!ghostSet.has(`${r},${c + 1}`))
+          edges.push(<line key={`gr${r},${c}`} x1={x + CS} y1={y} x2={x + CS} y2={y + CS} stroke={stroke} strokeWidth={sw} pointerEvents="none" />);
+        return edges;
+      })}
 
       {/* Outer border */}
       <rect x={LW} y={0} width={GRID_PX} height={GRID_PX}
