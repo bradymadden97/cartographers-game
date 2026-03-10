@@ -4,10 +4,11 @@ import { useGameSocket } from '../hooks/useGameSocket';
 import { usePlacement, getGhostInfo } from '../hooks/usePlacement';
 import { MapGrid } from './MapGrid';
 import { CardDisplay } from './CardDisplay';
+import type { PlayerContext, RoomContext } from '../types';
 
 interface Props {
-  roomId: string;
-  playerName: string;
+  player: PlayerContext;
+  room: RoomContext;
   onLeave: () => void;
   onLogout: () => void;
 }
@@ -19,11 +20,11 @@ const SEASON_LABELS: Record<string, string> = {
   winter: '❄️ Winter',
 };
 
-export function GameRoom({ roomId, playerName, onLeave, onLogout }: Props) {
-  const { gameState, status, send } = useGameSocket(roomId, playerName);
+export function GameRoom({ player, room, onLeave, onLogout }: Props) {
+  const { gameState, status, send } = useGameSocket(room.roomId, player.name);
   const { placementState, dispatch } = usePlacement();
 
-  const myPlayer = gameState?.players.find((p: PlayerInfo) => p.name === playerName);
+  const myPlayer = gameState?.players.find((p: PlayerInfo) => p.name === player.name);
   const myState = myPlayer ? gameState?.playerStates[myPlayer.id] : undefined;
   const round = gameState?.round ?? null;
 
@@ -84,7 +85,7 @@ export function GameRoom({ roomId, playerName, onLeave, onLogout }: Props) {
     <div className="game-room">
       <header>
         <button className="btn-secondary" onClick={onLeave}>← Leave</button>
-        <span className="room-code">Room: {roomId}</span>
+        <span className="room-code">Room: {room.roomId}</span>
         <span className={`status status-${status}`}>{status}</span>
         <button className="btn-secondary btn-sm" onClick={onLogout}>Log out</button>
       </header>
@@ -97,7 +98,7 @@ export function GameRoom({ roomId, playerName, onLeave, onLogout }: Props) {
               <h2>Players ({gameState.players.length})</h2>
               <ul>
                 {gameState.players.map((p: PlayerInfo) => (
-                  <li key={p.id} className={p.name === playerName ? 'me' : ''}>
+                  <li key={p.id} className={p.name === player.name ? 'me' : ''}>
                     {p.name}
                   </li>
                 ))}

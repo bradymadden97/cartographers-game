@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Lobby } from './components/Lobby';
 import { GameRoom } from './components/GameRoom';
+import type { PlayerContext, RoomContext } from './types';
 
 const SESSION_NAME_KEY = 'cartographers_player_name';
 
@@ -37,10 +38,12 @@ export default function App() {
   }
 
   if (state.view === 'game') {
+    const player: PlayerContext = { name: state.playerName };
+    const room: RoomContext = { roomId: state.roomId };
     return (
       <GameRoom
-        roomId={state.roomId}
-        playerName={state.playerName}
+        player={player}
+        room={room}
         onLeave={handleLeave}
         onLogout={handleLogout}
       />
