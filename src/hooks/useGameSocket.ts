@@ -15,6 +15,7 @@ type SocketStatus = 'connecting' | 'connected' | 'disconnected';
 export function useGameSocket(roomId: string, playerName: string) {
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [status, setStatus] = useState<SocketStatus>('connecting');
+  const [error, setError] = useState<string | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
@@ -30,6 +31,8 @@ export function useGameSocket(roomId: string, playerName: string) {
       const msg: ServerMessage = JSON.parse(event.data);
       if (msg.type === 'game_state') {
         setGameState(msg.state);
+      } else if (msg.type === 'error') {
+        setError(msg.message);
       }
     };
 
@@ -45,5 +48,5 @@ export function useGameSocket(roomId: string, playerName: string) {
     }
   }
 
-  return { gameState, status, send };
+  return { gameState, status, error, send };
 }

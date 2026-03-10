@@ -21,7 +21,7 @@ const SEASON_LABELS: Record<string, string> = {
 };
 
 export function GameRoom({ player, room, onLeave, onLogout }: Props) {
-  const { gameState, status, send } = useGameSocket(room.roomId, player.name);
+  const { gameState, status, error, send } = useGameSocket(room.roomId, player.name);
   const { placementState, dispatch } = usePlacement();
 
   const myPlayer = gameState?.players.find((p: PlayerInfo) => p.id === player.id);
@@ -95,6 +95,7 @@ export function GameRoom({ player, room, onLeave, onLogout }: Props) {
         <button className="btn-secondary" onClick={onLeave}>← Leave</button>
         <span className="room-code">Room: {room.roomId}</span>
         <span className={`status status-${status}`}>{status}</span>
+        {error && <span className="server-error">{error}</span>}
         <button className="btn-secondary btn-sm" onClick={onLogout}>Log out</button>
       </header>
 
