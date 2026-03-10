@@ -1,5 +1,5 @@
 import { usePathname, navigate } from './router';
-import { getSessionName, setSessionName, clearSession } from './session';
+import { getSessionId, getSessionName, setSessionName, clearSession } from './session';
 import { Landing } from './components/Landing';
 import { GameRoom } from './components/GameRoom';
 import type { PlayerContext, RoomContext } from './types';
@@ -26,7 +26,7 @@ export default function App() {
       navigate(`/?join=${route.roomId}`);
       return null;
     }
-    const player: PlayerContext = { name: savedName };
+    const player: PlayerContext = { id: getSessionId(), name: savedName };
     const room: RoomContext = { roomId: route.roomId };
     return (
       <GameRoom

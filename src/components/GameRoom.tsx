@@ -24,7 +24,7 @@ export function GameRoom({ player, room, onLeave, onLogout }: Props) {
   const { gameState, status, send } = useGameSocket(room.roomId, player.name);
   const { placementState, dispatch } = usePlacement();
 
-  const myPlayer = gameState?.players.find((p: PlayerInfo) => p.name === player.name);
+  const myPlayer = gameState?.players.find((p: PlayerInfo) => p.id === player.id);
   const myState = myPlayer ? gameState?.playerStates[myPlayer.id] : undefined;
   const round = gameState?.round ?? null;
 
@@ -106,7 +106,7 @@ export function GameRoom({ player, room, onLeave, onLogout }: Props) {
               <h2>Players ({gameState.players.length})</h2>
               <ul>
                 {gameState.players.map((p: PlayerInfo) => (
-                  <li key={p.id} className={p.name === player.name ? 'me' : ''}>
+                  <li key={p.id} className={p.id === player.id ? 'me' : ''}>
                     {p.name}
                   </li>
                 ))}

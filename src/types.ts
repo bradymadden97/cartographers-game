@@ -1,4 +1,5 @@
 export interface PlayerContext {
+  id: string;
   name: string;
 }
 
