@@ -5,17 +5,18 @@
 }
 
 :root {
-  --bg: #1a1a2e;
-  --surface: #16213e;
-  --primary: #0f3460;
-  --accent: #e94560;
-  --text: #eaeaea;
-  --text-muted: #8892b0;
-  --radius: 8px;
+  --bg: #1a120b;
+  --surface: #2a1c0f;
+  --primary: #4a3520;
+  --accent: #c49a2c;
+  --accent-light: #e8c04a;
+  --text: #f0e6cc;
+  --text-muted: #9a8060;
+  --radius: 4px;
 }
 
 body {
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family: 'IM Fell English', Georgia, serif;
   background: var(--bg);
   color: var(--text);
   min-height: 100dvh;
@@ -43,14 +44,19 @@ body {
 }
 
 .lobby h1 {
-  font-size: 2.5rem;
-  letter-spacing: 0.1em;
+  font-family: 'Cinzel Decorative', 'Cinzel', serif;
+  font-size: 2.4rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
   color: var(--accent);
+  text-shadow: 0 2px 12px rgba(196, 154, 44, 0.35);
+  text-align: center;
 }
 
 .card {
   background: var(--surface);
   border-radius: var(--radius);
+  border: 1px solid var(--primary);
   padding: 1.5rem;
   width: 100%;
   max-width: 360px;
@@ -68,6 +74,7 @@ input {
   border: 1px solid var(--primary);
   border-radius: var(--radius);
   color: var(--text);
+  font-family: 'IM Fell English', Georgia, serif;
   font-size: 1rem;
   outline: none;
 }
@@ -76,17 +83,29 @@ input:focus {
   border-color: var(--accent);
 }
 
+input::placeholder {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
 button {
   width: 100%;
   padding: 0.75rem;
   background: var(--accent);
-  color: white;
+  color: #1a120b;
   border: none;
   border-radius: var(--radius);
-  font-size: 1rem;
+  font-family: 'Cinzel', serif;
+  font-size: 0.9rem;
   font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
   cursor: pointer;
   touch-action: manipulation;
+}
+
+button:hover:not(:disabled) {
+  background: var(--accent-light);
 }
 
 button:disabled {
@@ -97,18 +116,41 @@ button:disabled {
 .btn-secondary {
   background: transparent;
   width: auto;
-  padding: 0.5rem 0.75rem;
+  padding: 0.4rem 0.75rem;
   border: 1px solid var(--primary);
+  color: var(--text-muted);
+  font-family: 'Cinzel', serif;
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: transparent;
+  border-color: var(--accent);
   color: var(--text);
-  font-size: 0.875rem;
-  font-weight: 400;
+}
+
+.btn-sm {
+  font-size: 0.75rem;
+  padding: 0.35rem 0.65rem;
 }
 
 .divider {
   text-align: center;
   color: var(--text-muted);
+  font-style: italic;
   font-size: 0.875rem;
   padding: 0.25rem 0;
+}
+
+.name-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.name-row input {
+  flex: 1;
 }
 
 /* --- Game Room --- */
@@ -122,7 +164,7 @@ button:disabled {
 header {
   display: flex;
   align-items: center;
-  padding: 0.75rem 1rem;
+  padding: 0.6rem 1rem;
   background: var(--surface);
   gap: 0.75rem;
   border-bottom: 1px solid var(--primary);
@@ -130,22 +172,25 @@ header {
 
 .room-code {
   flex: 1;
+  font-family: 'Cinzel', serif;
   font-weight: 600;
-  letter-spacing: 0.05em;
-  font-size: 0.9rem;
+  letter-spacing: 0.08em;
+  font-size: 0.85rem;
+  color: var(--accent);
 }
 
 .status {
-  font-size: 0.7rem;
-  padding: 0.25rem 0.6rem;
+  font-family: 'Cinzel', serif;
+  font-size: 0.65rem;
+  padding: 0.2rem 0.6rem;
   border-radius: 999px;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.06em;
 }
 
-.status-connecting { background: #444; }
-.status-connected { background: #1e5c1a; color: #7ee67a; }
-.status-disconnected { background: #5a2727; color: #f97; }
+.status-connecting { background: #3a2e1e; color: var(--text-muted); }
+.status-connected   { background: #1a3020; color: #7ec87a; }
+.status-disconnected { background: #3a1818; color: #f08878; }
 
 main {
   flex: 1;
@@ -157,9 +202,10 @@ main {
 }
 
 .players h2 {
-  font-size: 0.875rem;
+  font-family: 'Cinzel', serif;
+  font-size: 0.8rem;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.1em;
   color: var(--text-muted);
   margin-bottom: 0.75rem;
 }
@@ -203,4 +249,5 @@ main {
   align-items: center;
   justify-content: center;
   color: var(--text-muted);
+  font-style: italic;
 }
