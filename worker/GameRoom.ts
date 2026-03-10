@@ -104,7 +104,9 @@ export class GameRoom {
           if (existing) {
             // Reconnecting — update name in case it changed
             existing.name = msg.name;
-            this.gameState.playerStates[playerId].info.name = msg.name;
+            if (this.gameState.playerStates[playerId]) {
+              this.gameState.playerStates[playerId].info.name = msg.name;
+            }
           } else {
             const player: PlayerInfo = { id: playerId, name: msg.name };
             this.gameState.players.push(player);
@@ -182,6 +184,11 @@ export class GameRoom {
     const variants = getVariants(shapeBase);
     const coords = variants[payload.variantIndex % variants.length];
     const playerState = this.gameState.playerStates[playerId];
+
+    if (!playerState) {
+      ws.send(JSON.stringify({ type: 'error', message: 'Player state not found' } satisfies ServerMessage));
+      return;
+    }
 
     if (!isValidPlacement(playerState.grid, coords, payload.origin, exploreCard.terrain)) {
       ws.send(JSON.stringify({ type: 'error', message: 'Invalid placement' } satisfies ServerMessage));
