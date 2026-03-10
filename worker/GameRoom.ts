@@ -221,7 +221,7 @@ export class GameRoom {
     const { round } = this.gameState;
     if (!round || this.gameState.phase !== 'playing') return;
     if (round.placements[playerId] !== 'pending') return;
-    if (targetPlayerId === playerId) {
+    if (targetPlayerId === playerId && this.gameState.players.length > 1) {
       ws.send(JSON.stringify({ type: 'error', message: 'Cannot target yourself' } satisfies ServerMessage));
       return;
     }

@@ -54,6 +54,18 @@ export function GameRoom({ player, room, onLeave, onLogout }: Props) {
     }
   }, [round?.placements, myPlayer?.id]);
 
+  const myGrid = myState?.grid;
+  const card = placementState.phase === 'selecting' ? placementState.card : null;
+  const shapeIndex = placementState.phase === 'selecting' ? placementState.shapeIndex : -1;
+  const variantIndex = placementState.phase === 'selecting' ? placementState.variantIndex : 0;
+  const terrain = placementState.phase === 'selecting' ? placementState.terrain : null;
+
+  // During ambush, preview and validate against the target's grid (opponent, or self in solo)
+  const isAmbush = card?.terrain === 'monster';
+  const opponentPlayer = gameState?.players.find((p: PlayerInfo) => p.id !== myPlayer?.id);
+  const opponentGrid = opponentPlayer ? gameState?.playerStates[opponentPlayer.id]?.grid : undefined;
+  const targetGrid = isAmbush ? (opponentGrid ?? myGrid) : myGrid;
+
   function handleConfirm() {
     if (placementState.phase !== 'selecting' || !placementState.locked || !placementState.valid) return;
     if (!round) return;
@@ -68,9 +80,9 @@ export function GameRoom({ player, room, onLeave, onLogout }: Props) {
     };
 
     if (card.terrain === 'monster') {
-      const opponent = gameState?.players.find((p: PlayerInfo) => p.id !== myPlayer?.id);
-      if (opponent) {
-        send({ type: 'place_monster', targetPlayerId: opponent.id, payload });
+      const targetId = opponentPlayer?.id ?? myPlayer?.id;
+      if (targetId) {
+        send({ type: 'place_monster', targetPlayerId: targetId, payload });
       }
     } else {
       send({ type: 'place_terrain', payload });
@@ -79,15 +91,9 @@ export function GameRoom({ player, room, onLeave, onLogout }: Props) {
     dispatch({ type: 'CONFIRM' });
   }
 
-  const myGrid = myState?.grid;
-  const { ghostCoords, ghostTerrain, ghostValid } = myGrid
-    ? getGhostInfo(placementState, myGrid)
+  const { ghostCoords, ghostTerrain, ghostValid } = targetGrid
+    ? getGhostInfo(placementState, targetGrid)
     : { ghostCoords: undefined, ghostTerrain: undefined, ghostValid: undefined };
-
-  const shapeIndex = placementState.phase === 'selecting' ? placementState.shapeIndex : -1;
-  const variantIndex = placementState.phase === 'selecting' ? placementState.variantIndex : 0;
-  const card = placementState.phase === 'selecting' ? placementState.card : null;
-  const terrain = placementState.phase === 'selecting' ? placementState.terrain : null;
 
   const isInteractive = placementState.phase === 'selecting';
 
@@ -154,24 +160,24 @@ export function GameRoom({ player, room, onLeave, onLogout }: Props) {
                   variantIndex={variantIndex}
                   terrain={terrain}
                   onSetTerrain={(t) => dispatch({ type: 'SET_TERRAIN', terrain: t })}
-                  onSelectShape={(i) => dispatch({ type: 'SELECT_SHAPE', index: i, grid: myGrid })}
-                  onRotate={() => dispatch({ type: 'ROTATE', grid: myGrid })}
-                  onReflect={() => dispatch({ type: 'REFLECT', grid: myGrid })}
+                  onSelectShape={(i) => dispatch({ type: 'SELECT_SHAPE', index: i, grid: targetGrid ?? myGrid })}
+                  onRotate={() => dispatch({ type: 'ROTATE', grid: targetGrid ?? myGrid })}
+                  onReflect={() => dispatch({ type: 'REFLECT', grid: targetGrid ?? myGrid })}
                 />
               )}
 
               <MapGrid
-                grid={myGrid}
+                grid={targetGrid ?? myGrid}
                 ghostCoords={ghostCoords}
                 ghostTerrain={ghostTerrain}
                 ghostValid={ghostValid}
                 interactive={isInteractive}
                 showCoins
                 onCellMove={(row, col) => {
-                  if (isInteractive) dispatch({ type: 'POINTER_MOVE', row, col, grid: myGrid });
+                  if (isInteractive) dispatch({ type: 'POINTER_MOVE', row, col, grid: targetGrid ?? myGrid });
                 }}
                 onCellUp={(row, col) => {
-                  if (isInteractive) dispatch({ type: 'POINTER_UP', row, col, grid: myGrid });
+                  if (isInteractive) dispatch({ type: 'POINTER_UP', row, col, grid: targetGrid ?? myGrid });
                 }}
               />
 
