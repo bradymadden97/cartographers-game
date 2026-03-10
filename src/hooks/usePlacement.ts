@@ -111,6 +111,14 @@ function reducer(state: PlacementState, action: PlacementAction): PlacementState
       }
       const card = 'card' in state ? state.card : null;
       if (!card) return state;
+      // Clicking the already-selected shape does not reset rotation
+      if (
+        (state.phase === 'orient' || state.phase === 'position') &&
+        'shapeIndex' in state &&
+        state.shapeIndex === action.index
+      ) {
+        return state;
+      }
       return { phase: 'orient', card, shapeIndex: action.index, variantIndex: 0 };
     }
 
@@ -118,30 +126,30 @@ function reducer(state: PlacementState, action: PlacementAction): PlacementState
       if (state.phase !== 'orient' && state.phase !== 'position' && state.phase !== 'confirm') return state;
       const count = computeVariantCount(state.card, state.shapeIndex);
       const nextVariant = (state.variantIndex + 1) % count;
-      if (state.phase === 'orient') {
+      if (state.phase === 'position') {
+        // Stay in position — ghost updates automatically via getGhostInfo
         return { ...state, variantIndex: nextVariant };
       }
-      // Re-validate after rotation if we have an anchor
-      if (state.phase === 'position' || state.phase === 'confirm') {
-        return { ...state, phase: 'orient', variantIndex: nextVariant };
+      if (state.phase === 'confirm') {
+        // Drop anchor back to position so ghost shows new orientation
+        return { phase: 'position', card: state.card, shapeIndex: state.shapeIndex, variantIndex: nextVariant, anchorRow: state.anchorRow, anchorCol: state.anchorCol };
       }
-      return state;
+      return { ...state, variantIndex: nextVariant };
     }
 
     case 'REFLECT': {
       if (state.phase !== 'orient' && state.phase !== 'position' && state.phase !== 'confirm') return state;
-      // Reflection: find the reflected variant by rotating until we find the "flipped" version
-      // Simple approach: toggle between rotation pairs (reflected variants are interleaved in getVariants)
       const count = computeVariantCount(state.card, state.shapeIndex);
-      // getVariants interleaves: [rot0, flip0, rot1, flip1, ...] or similar
-      // We just jump by 1 to get to the reflected partner
       const nextVariant = (state.variantIndex % 2 === 0)
         ? Math.min(state.variantIndex + 1, count - 1)
         : state.variantIndex - 1;
-      if (state.phase === 'orient') {
+      if (state.phase === 'position') {
         return { ...state, variantIndex: nextVariant };
       }
-      return { ...state, phase: 'orient', variantIndex: nextVariant };
+      if (state.phase === 'confirm') {
+        return { phase: 'position', card: state.card, shapeIndex: state.shapeIndex, variantIndex: nextVariant, anchorRow: state.anchorRow, anchorCol: state.anchorCol };
+      }
+      return { ...state, variantIndex: nextVariant };
     }
 
     case 'POINTER_MOVE': {

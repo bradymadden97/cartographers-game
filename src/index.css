@@ -252,6 +252,168 @@ main {
   font-style: italic;
 }
 
+/* --- Card strip (name row above toolbar) --- */
+
+.card-strip {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  width: 100%;
+  max-width: 480px;
+}
+
+.card-strip__name {
+  font-family: 'IM Fell English', Georgia, serif;
+  font-size: 1rem;
+  color: var(--text);
+  flex: 1;
+}
+
+.card-strip__time {
+  font-family: 'Cinzel', serif;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+.card-strip__ambush {
+  font-size: 0.7rem;
+  color: #c084fc;
+  font-style: italic;
+}
+
+/* --- Card toolbar (5 buttons in one row) --- */
+
+.card-toolbar {
+  display: flex;
+  gap: 6px;
+  width: 100%;
+  max-width: 480px;
+}
+
+.card-toolbar__btn {
+  flex: 1;
+  min-width: 0;
+  height: 60px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 4px;
+  background: var(--surface);
+  border: 1px solid var(--primary);
+  border-radius: var(--radius);
+  cursor: pointer;
+  color: var(--text);
+  transition: border-color 0.1s, background 0.1s;
+  touch-action: manipulation;
+  /* override global button full-width */
+  width: auto;
+}
+
+.card-toolbar__btn:hover:not(:disabled) {
+  background: var(--primary);
+  border-color: var(--accent);
+}
+
+.card-toolbar__btn--active {
+  border-color: var(--accent);
+  background: #3a2808;
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.card-toolbar__placeholder {
+  background: transparent;
+  border-color: transparent;
+  cursor: default;
+  pointer-events: none;
+}
+
+/* Shape buttons — just the mini grid, centered */
+.card-toolbar__shape {
+  gap: 0;
+}
+
+/* Terrain button */
+.card-toolbar__terrain {
+  position: relative;
+  gap: 4px;
+}
+
+.card-toolbar__terrain:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.card-toolbar__terrain-swatch {
+  display: block;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  background: var(--terrain-color, #888);
+  border: 1px solid rgba(255,255,255,0.15);
+}
+
+.card-toolbar__terrain-label {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  line-height: 1;
+}
+
+/* Rotate / Flip icon buttons */
+.card-toolbar__icon {
+  color: var(--text-muted);
+}
+
+.card-toolbar__icon:hover:not(:disabled) {
+  color: var(--text);
+}
+
+/* --- Terrain picker drawer --- */
+
+.terrain-picker__grid {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.terrain-picker__btn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 0.75rem 0.5rem;
+  background: var(--bg);
+  border: 2px solid var(--primary);
+  border-radius: var(--radius);
+  cursor: pointer;
+  color: var(--text);
+  width: auto;
+  transition: border-color 0.1s, background 0.1s;
+}
+
+.terrain-picker__btn:hover:not(:disabled) {
+  background: var(--primary);
+  border-color: var(--terrain-color, var(--accent));
+}
+
+.terrain-picker__btn--selected {
+  border-color: var(--terrain-color, var(--accent));
+  background: #1f1408;
+}
+
+.terrain-picker__emoji {
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+.terrain-picker__name {
+  font-family: 'Cinzel', serif;
+  font-size: 0.55rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
 /* --- Map SVG --- */
 
 .map-svg {
