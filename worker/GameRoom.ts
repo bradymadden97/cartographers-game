@@ -1,15 +1,66 @@
-import type { ClientMessage, GameState, PlayerInfo, ServerMessage } from './types';
+import { createGrid, isValidPlacement, placeShape, resolveCoords, coversRuins } from '../src/lib/grid';
+import { EXPLORE_CARDS, AMBUSH_CARDS, getVariants } from '../src/lib/shapes';
+import type {
+  AmbushCard,
+  Card,
+  ClientMessage,
+  ExploreCard,
+  GameState,
+  PlacementPayload,
+  PlayerInfo,
+  PlayerState,
+  RoundState,
+  Season,
+  SeasonName,
+  ServerMessage,
+} from './types';
+
+const SEASONS: Season[] = [
+  { name: 'spring', timeThreshold: 8, scoringCards: ['A', 'B'] },
+  { name: 'summer', timeThreshold: 8, scoringCards: ['B', 'C'] },
+  { name: 'fall',   timeThreshold: 7, scoringCards: ['C', 'D'] },
+  { name: 'winter', timeThreshold: 6, scoringCards: ['D', 'A'] },
+];
+
+function shuffle<T>(arr: T[]): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function buildDeck(): Card[] {
+  // Interleave one ambush card per season into a shuffled explore deck
+  const explores: Card[] = shuffle([...EXPLORE_CARDS]);
+  const ambushes: Card[] = shuffle([...AMBUSH_CARDS]).slice(0, 4);
+
+  // Insert each ambush at the end of each "season chunk"
+  // For simplicity: insert at positions that roughly split the deck into 4 seasons
+  const chunkSize = Math.ceil(explores.length / 4);
+  const deck: Card[] = [];
+  for (let i = 0; i < 4; i++) {
+    const chunk = explores.slice(i * chunkSize, (i + 1) * chunkSize);
+    deck.push(...chunk, ambushes[i]);
+  }
+  return deck;
+}
 
 export class GameRoom {
   private state: DurableObjectState;
   private gameState: GameState;
+  private deck: Card[] = [];
+  private deckIndex = 0;
 
   constructor(state: DurableObjectState) {
     this.state = state;
     this.gameState = {
       roomId: state.id.toString(),
       players: [],
-      status: 'waiting',
+      playerStates: {},
+      phase: 'waiting',
+      round: null,
     };
   }
 
@@ -37,18 +88,48 @@ export class GameRoom {
         case 'join': {
           const player: PlayerInfo = { id: playerId, name: msg.name };
           this.gameState.players.push(player);
+          this.gameState.playerStates[playerId] = {
+            info: player,
+            grid: createGrid(),
+            coins: 0,
+            seasonScores: [],
+          };
           this.broadcast({ type: 'game_state', state: this.gameState });
           break;
         }
+
         case 'start_game': {
-          if (this.gameState.status === 'waiting' && this.gameState.players.length > 0) {
-            this.gameState.status = 'playing';
-            this.broadcast({ type: 'game_state', state: this.gameState });
-          }
+          if (this.gameState.phase !== 'waiting' || this.gameState.players.length === 0) break;
+
+          this.deck = buildDeck();
+          this.deckIndex = 0;
+
+          const firstCard = this.deck[this.deckIndex++];
+          const placements: Record<string, 'pending'> = {};
+          for (const p of this.gameState.players) placements[p.id] = 'pending';
+
+          const round: RoundState = {
+            roundNumber: 1,
+            currentCard: firstCard,
+            season: 'spring',
+            seasonIndex: 0,
+            elapsedTime: 0,
+            placements,
+          };
+
+          this.gameState.phase = 'playing';
+          this.gameState.round = round;
+          this.broadcast({ type: 'game_state', state: this.gameState });
           break;
         }
-        case 'player_action': {
-          // TODO: implement game-specific action handling
+
+        case 'place_terrain': {
+          this.handlePlaceTerrain(ws, playerId, msg.payload);
+          break;
+        }
+
+        case 'place_monster': {
+          this.handlePlaceMonster(ws, playerId, msg.targetPlayerId, msg.payload);
           break;
         }
       }
@@ -57,9 +138,155 @@ export class GameRoom {
     }
   }
 
+  private handlePlaceTerrain(ws: WebSocket, playerId: string, payload: PlacementPayload): void {
+    const { round } = this.gameState;
+    if (!round || this.gameState.phase !== 'playing') return;
+    if (round.placements[playerId] !== 'pending') return;
+
+    const card = round.currentCard;
+    if (card.terrain === 'monster') {
+      ws.send(JSON.stringify({ type: 'error', message: 'Use place_monster for ambush cards' } satisfies ServerMessage));
+      return;
+    }
+
+    const exploreCard = card as ExploreCard;
+    const shapeBase = exploreCard.shapes[payload.shapeIndex];
+    if (!shapeBase) {
+      ws.send(JSON.stringify({ type: 'error', message: 'Invalid shape index' } satisfies ServerMessage));
+      return;
+    }
+
+    const variants = getVariants(shapeBase);
+    const coords = variants[payload.variantIndex % variants.length];
+    const playerState = this.gameState.playerStates[playerId];
+
+    if (!isValidPlacement(playerState.grid, coords, payload.origin, exploreCard.terrain)) {
+      ws.send(JSON.stringify({ type: 'error', message: 'Invalid placement' } satisfies ServerMessage));
+      return;
+    }
+
+    // Award coin if placement covers a ruins cell
+    const resolved = resolveCoords(coords, payload.origin);
+    if (coversRuins(playerState.grid, resolved)) {
+      playerState.coins += 1;
+    }
+
+    playerState.grid = placeShape(playerState.grid, coords, payload.origin, exploreCard.terrain);
+    round.placements[playerId] = 'placed';
+
+    this.broadcast({ type: 'game_state', state: this.gameState });
+
+    if (this.allPlaced()) this.advanceRound();
+  }
+
+  private handlePlaceMonster(
+    ws: WebSocket,
+    playerId: string,
+    targetPlayerId: string,
+    payload: PlacementPayload,
+  ): void {
+    const { round } = this.gameState;
+    if (!round || this.gameState.phase !== 'playing') return;
+    if (round.placements[playerId] !== 'pending') return;
+    if (targetPlayerId === playerId) {
+      ws.send(JSON.stringify({ type: 'error', message: 'Cannot target yourself' } satisfies ServerMessage));
+      return;
+    }
+
+    const card = round.currentCard;
+    if (card.terrain !== 'monster') {
+      ws.send(JSON.stringify({ type: 'error', message: 'Current card is not an ambush' } satisfies ServerMessage));
+      return;
+    }
+
+    const ambushCard = card as AmbushCard;
+    const variants = getVariants(ambushCard.shape);
+    const coords = variants[payload.variantIndex % variants.length];
+    const targetState = this.gameState.playerStates[targetPlayerId];
+
+    if (!targetState) {
+      ws.send(JSON.stringify({ type: 'error', message: 'Invalid target player' } satisfies ServerMessage));
+      return;
+    }
+
+    if (!isValidPlacement(targetState.grid, coords, payload.origin, 'monster')) {
+      ws.send(JSON.stringify({ type: 'error', message: 'Invalid placement on target map' } satisfies ServerMessage));
+      return;
+    }
+
+    targetState.grid = placeShape(targetState.grid, coords, payload.origin, 'monster');
+    round.placements[playerId] = 'placed';
+
+    this.broadcast({ type: 'game_state', state: this.gameState });
+
+    if (this.allPlaced()) this.advanceRound();
+  }
+
+  private allPlaced(): boolean {
+    const { round } = this.gameState;
+    if (!round) return false;
+    return Object.values(round.placements).every((s) => s !== 'pending');
+  }
+
+  private advanceRound(): void {
+    const { round } = this.gameState;
+    if (!round) return;
+
+    this.broadcast({ type: 'round_end' });
+
+    round.elapsedTime += round.currentCard.timeCost;
+
+    const season = SEASONS[round.seasonIndex];
+    if (round.elapsedTime >= season.timeThreshold) {
+      // End of season
+      const nextSeasonIndex = round.seasonIndex + 1;
+      if (nextSeasonIndex >= SEASONS.length) {
+        // Game over
+        this.gameState.phase = 'finished';
+        this.gameState.round = null;
+        this.broadcast({ type: 'game_state', state: this.gameState });
+        return;
+      }
+
+      // Record a simple season score (placeholder — real scoring TBD)
+      for (const ps of Object.values(this.gameState.playerStates)) {
+        ps.seasonScores.push(ps.coins);
+      }
+
+      round.seasonIndex = nextSeasonIndex;
+      round.season = SEASONS[nextSeasonIndex].name as SeasonName;
+      round.elapsedTime = 0;
+    }
+
+    // Draw next card
+    if (this.deckIndex >= this.deck.length) {
+      // Deck exhausted — game over
+      this.gameState.phase = 'finished';
+      this.gameState.round = null;
+      this.broadcast({ type: 'game_state', state: this.gameState });
+      return;
+    }
+
+    const nextCard = this.deck[this.deckIndex++];
+    const placements: Record<string, 'pending'> = {};
+    for (const p of this.gameState.players) placements[p.id] = 'pending';
+
+    this.gameState.round = {
+      roundNumber: round.roundNumber + 1,
+      currentCard: nextCard,
+      season: round.season,
+      seasonIndex: round.seasonIndex,
+      elapsedTime: round.elapsedTime,
+      placements,
+    };
+
+    this.broadcast({ type: 'game_state', state: this.gameState });
+  }
+
   async webSocketClose(ws: WebSocket): Promise<void> {
     const [playerId] = this.state.getTags(ws);
     this.gameState.players = this.gameState.players.filter((p) => p.id !== playerId);
+    delete this.gameState.playerStates[playerId];
     this.broadcast({ type: 'game_state', state: this.gameState });
   }
 
