@@ -4,16 +4,25 @@ interface Props {
   initialName: string;
   initialRoomCode: string;
   onJoin: (roomId: string, playerName: string) => void;
+  onSolo: (roomId: string, playerName: string) => void;
 }
 
-export function Landing({ initialName, initialRoomCode, onJoin }: Props) {
+export function Landing({ initialName, initialRoomCode, onJoin, onSolo }: Props) {
   const [name, setName] = useState(initialName);
   const [roomCode, setRoomCode] = useState(initialRoomCode);
 
+  function generateId() {
+    return Math.random().toString(36).slice(2, 8).toUpperCase();
+  }
+
+  function handleSolo() {
+    if (!name.trim()) return;
+    onSolo(generateId(), name.trim());
+  }
+
   function handleCreate() {
     if (!name.trim()) return;
-    const id = Math.random().toString(36).slice(2, 8).toUpperCase();
-    onJoin(id, name.trim());
+    onJoin(generateId(), name.trim());
   }
 
   function handleJoin() {
@@ -34,6 +43,9 @@ export function Landing({ initialName, initialRoomCode, onJoin }: Props) {
           maxLength={20}
           autoComplete="off"
         />
+        <button onClick={handleSolo} disabled={!name.trim()}>
+          Play Solo
+        </button>
         <button onClick={handleCreate} disabled={!name.trim()}>
           Create Room
         </button>
