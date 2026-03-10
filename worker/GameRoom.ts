@@ -83,7 +83,10 @@ export class GameRoom {
     const pair = new WebSocketPair();
     const [client, server] = Object.values(pair) as [WebSocket, WebSocket];
 
-    const playerId = crypto.randomUUID();
+    // Use the client-supplied session ID as the stable player identity.
+    // Falls back to a random UUID if not provided (e.g. direct API access).
+    const url = new URL(request.url);
+    const playerId = url.searchParams.get('session') ?? crypto.randomUUID();
     this.state.acceptWebSocket(server, [playerId]);
 
     return new Response(null, { status: 101, webSocket: client });
@@ -97,22 +100,11 @@ export class GameRoom {
 
       switch (msg.type) {
         case 'join': {
-          const existingByName = this.gameState.players.find((p) => p.name === msg.name);
-          if (existingByName) {
-            // Reconnecting player — remap their state to the new connection's playerId
-            const oldId = existingByName.id;
-            if (oldId !== playerId) {
-              existingByName.id = playerId;
-              if (this.gameState.playerStates[oldId]) {
-                this.gameState.playerStates[playerId] = this.gameState.playerStates[oldId];
-                this.gameState.playerStates[playerId].info.id = playerId;
-                delete this.gameState.playerStates[oldId];
-              }
-              if (this.gameState.round?.placements[oldId] !== undefined) {
-                this.gameState.round.placements[playerId] = this.gameState.round.placements[oldId];
-                delete this.gameState.round.placements[oldId];
-              }
-            }
+          const existing = this.gameState.players.find((p) => p.id === playerId);
+          if (existing) {
+            // Reconnecting — update name in case it changed
+            existing.name = msg.name;
+            this.gameState.playerStates[playerId].info.name = msg.name;
           } else {
             const player: PlayerInfo = { id: playerId, name: msg.name };
             this.gameState.players.push(player);

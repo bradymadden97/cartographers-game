@@ -1,10 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ClientMessage, GameState, ServerMessage } from '../../worker/types';
+import { getSessionId } from '../session';
 
-function getWsBase(): string {
-  if (import.meta.env.DEV) return 'ws://localhost:8787/ws';
+function getWsUrl(roomId: string): string {
+  const sessionId = getSessionId();
+  const params = `?session=${sessionId}`;
+  if (import.meta.env.DEV) return `ws://localhost:8787/ws/${roomId}${params}`;
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-  return `${proto}://${location.host}/ws`;
+  return `${proto}://${location.host}/ws/${roomId}${params}`;
 }
 
 type SocketStatus = 'connecting' | 'connected' | 'disconnected';
@@ -15,7 +18,7 @@ export function useGameSocket(roomId: string, playerName: string) {
   const wsRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
-    const ws = new WebSocket(`${getWsBase()}/${roomId}`);
+    const ws = new WebSocket(getWsUrl(roomId));
     wsRef.current = ws;
 
     ws.onopen = () => {
@@ -28,8 +31,6 @@ export function useGameSocket(roomId: string, playerName: string) {
       if (msg.type === 'game_state') {
         setGameState(msg.state);
       }
-      // Other message types (round_end, error) can be handled by consumers
-      // via the onMessage callback if needed — for now game_state is the source of truth
     };
 
     ws.onclose = () => setStatus('disconnected');

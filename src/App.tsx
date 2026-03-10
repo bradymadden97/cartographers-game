@@ -1,9 +1,8 @@
 import { usePathname, navigate } from './router';
+import { getSessionName, setSessionName, clearSession } from './session';
 import { Landing } from './components/Landing';
 import { GameRoom } from './components/GameRoom';
 import type { PlayerContext, RoomContext } from './types';
-
-const SESSION_NAME_KEY = 'cartographers_player_name';
 
 function parseRoute(pathname: string): { type: 'landing' } | { type: 'room'; roomId: string } | null {
   if (pathname === '/') return { type: 'landing' };
@@ -15,7 +14,7 @@ function parseRoute(pathname: string): { type: 'landing' } | { type: 'room'; roo
 export default function App() {
   const pathname = usePathname();
   const route = parseRoute(pathname);
-  const savedName = sessionStorage.getItem(SESSION_NAME_KEY) ?? '';
+  const savedName = getSessionName();
 
   if (!route) {
     navigate('/');
@@ -35,7 +34,7 @@ export default function App() {
         room={room}
         onLeave={() => navigate('/')}
         onLogout={() => {
-          sessionStorage.removeItem(SESSION_NAME_KEY);
+          clearSession();
           navigate('/');
         }}
       />
@@ -48,7 +47,7 @@ export default function App() {
       initialName={savedName}
       initialRoomCode={initialRoomCode}
       onJoin={(roomId, playerName) => {
-        sessionStorage.setItem(SESSION_NAME_KEY, playerName);
+        setSessionName(playerName);
         navigate(`/lobby/${roomId}`);
       }}
     />
