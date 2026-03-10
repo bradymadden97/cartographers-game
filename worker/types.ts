@@ -89,6 +89,7 @@ export type PlacementPayload = {
   shapeIndex: number;    // index into card.shapes[]
   variantIndex: number;  // index into getVariants(shape)
   origin: [number, number]; // [row, col] anchor
+  terrain?: TerrainType;   // player-selected terrain override (for multi-terrain cards)
 };
 
 export type ClientMessage =

@@ -190,7 +190,9 @@ export class GameRoom {
       return;
     }
 
-    if (!isValidPlacement(playerState.grid, coords, payload.origin, exploreCard.terrain)) {
+    const terrain = payload.terrain ?? exploreCard.terrain;
+
+    if (!isValidPlacement(playerState.grid, coords, payload.origin, terrain)) {
       ws.send(JSON.stringify({ type: 'error', message: 'Invalid placement' } satisfies ServerMessage));
       return;
     }
@@ -201,7 +203,7 @@ export class GameRoom {
       playerState.coins += 1;
     }
 
-    playerState.grid = placeShape(playerState.grid, coords, payload.origin, exploreCard.terrain);
+    playerState.grid = placeShape(playerState.grid, coords, payload.origin, terrain);
     round.placements[playerId] = 'placed';
 
     this.broadcast({ type: 'game_state', state: this.gameState });
@@ -219,7 +221,7 @@ export class GameRoom {
     const { round } = this.gameState;
     if (!round || this.gameState.phase !== 'playing') return;
     if (round.placements[playerId] !== 'pending') return;
-    if (targetPlayerId === playerId) {
+    if (targetPlayerId === playerId && this.gameState.players.length > 1) {
       ws.send(JSON.stringify({ type: 'error', message: 'Cannot target yourself' } satisfies ServerMessage));
       return;
     }

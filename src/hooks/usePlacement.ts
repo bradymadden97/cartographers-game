@@ -9,47 +9,23 @@ import { isValidPlacement, resolveCoords } from '../lib/grid';
 
 type IdleState = { phase: 'idle' };
 
-type SelectShapeState = {
-  phase: 'select_shape';
-  card: Card;
-};
-
-type OrientState = {
-  phase: 'orient';
+export type SelectingState = {
+  phase: 'selecting';
   card: Card;
   shapeIndex: number;
   variantIndex: number;
-};
-
-type PositionState = {
-  phase: 'position';
-  card: Card;
-  shapeIndex: number;
-  variantIndex: number;
-  anchorRow: number;
-  anchorCol: number;
-};
-
-type ConfirmState = {
-  phase: 'confirm';
-  card: Card;
-  shapeIndex: number;
-  variantIndex: number;
-  anchorRow: number;
-  anchorCol: number;
-  resolvedCoords: [number, number][];
-  valid: boolean;
+  terrain: TerrainType;
+  anchorRow: number | null;
+  anchorCol: number | null;
+  /** true after a POINTER_UP — enables the Confirm button */
+  locked: boolean;
+  /** null = no anchor yet; true/false = last computed validity */
+  valid: boolean | null;
 };
 
 type SubmittedState = { phase: 'submitted' };
 
-export type PlacementState =
-  | IdleState
-  | SelectShapeState
-  | OrientState
-  | PositionState
-  | ConfirmState
-  | SubmittedState;
+export type PlacementState = IdleState | SelectingState | SubmittedState;
 
 // ---------------------------------------------------------------------------
 // Actions
@@ -57,9 +33,10 @@ export type PlacementState =
 
 export type PlacementAction =
   | { type: 'CARD_RECEIVED'; card: Card }
-  | { type: 'SELECT_SHAPE'; index: number }
-  | { type: 'ROTATE' }
-  | { type: 'REFLECT' }
+  | { type: 'SELECT_SHAPE'; index: number; grid?: Grid }
+  | { type: 'SET_TERRAIN'; terrain: TerrainType }
+  | { type: 'ROTATE'; grid?: Grid }
+  | { type: 'REFLECT'; grid?: Grid }
   | { type: 'POINTER_MOVE'; row: number; col: number; grid: Grid }
   | { type: 'POINTER_UP'; row: number; col: number; grid: Grid }
   | { type: 'CONFIRM' }
@@ -74,25 +51,22 @@ function getShapeCoords(card: Card, shapeIndex: number): ShapeCoords {
   return (card as ExploreCard).shapes[shapeIndex] ?? (card as ExploreCard).shapes[0];
 }
 
-function getTerrain(card: Card): TerrainType {
-  return card.terrain;
-}
-
 function computeVariantCount(card: Card, shapeIndex: number): number {
   return getVariants(getShapeCoords(card, shapeIndex)).length;
 }
 
-function computeResolved(
+function computeValid(
   card: Card,
   shapeIndex: number,
   variantIndex: number,
   anchorRow: number,
   anchorCol: number,
-): [number, number][] {
+  grid: Grid,
+): boolean {
   const shape = getShapeCoords(card, shapeIndex);
   const variants = getVariants(shape);
   const coords = variants[variantIndex % variants.length];
-  return resolveCoords(coords, [anchorRow, anchorCol]);
+  return isValidPlacement(grid, coords, [anchorRow, anchorCol], card.terrain);
 }
 
 // ---------------------------------------------------------------------------
@@ -102,93 +76,77 @@ function computeResolved(
 function reducer(state: PlacementState, action: PlacementAction): PlacementState {
   switch (action.type) {
     case 'CARD_RECEIVED': {
-      return { phase: 'select_shape', card: action.card };
-    }
-
-    case 'SELECT_SHAPE': {
-      if (state.phase !== 'select_shape' && state.phase !== 'orient' && state.phase !== 'position') {
-        return state;
-      }
-      const card = 'card' in state ? state.card : null;
-      if (!card) return state;
-      return { phase: 'orient', card, shapeIndex: action.index, variantIndex: 0 };
-    }
-
-    case 'ROTATE': {
-      if (state.phase !== 'orient' && state.phase !== 'position' && state.phase !== 'confirm') return state;
-      const count = computeVariantCount(state.card, state.shapeIndex);
-      const nextVariant = (state.variantIndex + 1) % count;
-      if (state.phase === 'orient') {
-        return { ...state, variantIndex: nextVariant };
-      }
-      // Re-validate after rotation if we have an anchor
-      if (state.phase === 'position' || state.phase === 'confirm') {
-        return { ...state, phase: 'orient', variantIndex: nextVariant };
-      }
-      return state;
-    }
-
-    case 'REFLECT': {
-      if (state.phase !== 'orient' && state.phase !== 'position' && state.phase !== 'confirm') return state;
-      // Reflection: find the reflected variant by rotating until we find the "flipped" version
-      // Simple approach: toggle between rotation pairs (reflected variants are interleaved in getVariants)
-      const count = computeVariantCount(state.card, state.shapeIndex);
-      // getVariants interleaves: [rot0, flip0, rot1, flip1, ...] or similar
-      // We just jump by 1 to get to the reflected partner
-      const nextVariant = (state.variantIndex % 2 === 0)
-        ? Math.min(state.variantIndex + 1, count - 1)
-        : state.variantIndex - 1;
-      if (state.phase === 'orient') {
-        return { ...state, variantIndex: nextVariant };
-      }
-      return { ...state, phase: 'orient', variantIndex: nextVariant };
-    }
-
-    case 'POINTER_MOVE': {
-      if (state.phase !== 'orient' && state.phase !== 'position' && state.phase !== 'confirm') return state;
-      const { row, col, grid } = action;
-      const card = state.card;
-      const si = 'shapeIndex' in state ? state.shapeIndex : 0;
-      const vi = 'variantIndex' in state ? state.variantIndex : 0;
-
       return {
-        phase: 'position',
-        card,
-        shapeIndex: si,
-        variantIndex: vi,
-        anchorRow: row,
-        anchorCol: col,
-        // ghost computation happens in the component from these values
-      } as PositionState;
-    }
-
-    case 'POINTER_UP': {
-      if (state.phase !== 'position' && state.phase !== 'orient') return state;
-      const { row, col, grid } = action;
-      const card = state.card;
-      const si = 'shapeIndex' in state ? state.shapeIndex : 0;
-      const vi = 'variantIndex' in state ? state.variantIndex : 0;
-
-      const resolved = computeResolved(card, si, vi, row, col);
-      const shape = getShapeCoords(card, si);
-      const variants = getVariants(shape);
-      const coords = variants[vi % variants.length];
-      const valid = isValidPlacement(grid, coords, [row, col], getTerrain(card));
-
-      return {
-        phase: 'confirm',
-        card,
-        shapeIndex: si,
-        variantIndex: vi,
-        anchorRow: row,
-        anchorCol: col,
-        resolvedCoords: resolved,
-        valid,
+        phase: 'selecting',
+        card: action.card,
+        shapeIndex: 0,
+        variantIndex: 0,
+        terrain: action.card.terrain,
+        anchorRow: null,
+        anchorCol: null,
+        locked: false,
+        valid: null,
       };
     }
 
+    case 'SELECT_SHAPE': {
+      if (state.phase !== 'selecting') return state;
+      const isSameShape = state.shapeIndex === action.index;
+      const nextVariant = isSameShape ? state.variantIndex : 0;
+      const valid =
+        state.anchorRow !== null && state.anchorCol !== null && action.grid
+          ? computeValid(state.card, action.index, nextVariant, state.anchorRow, state.anchorCol, action.grid)
+          : state.valid;
+      return { ...state, shapeIndex: action.index, variantIndex: nextVariant, valid };
+    }
+
+    case 'SET_TERRAIN': {
+      if (state.phase !== 'selecting') return state;
+      return { ...state, terrain: action.terrain };
+    }
+
+    case 'ROTATE': {
+      if (state.phase !== 'selecting') return state;
+      const count = computeVariantCount(state.card, state.shapeIndex);
+      const nextVariant = (state.variantIndex + 1) % count;
+      const valid =
+        state.anchorRow !== null && state.anchorCol !== null && action.grid
+          ? computeValid(state.card, state.shapeIndex, nextVariant, state.anchorRow, state.anchorCol, action.grid)
+          : state.valid;
+      return { ...state, variantIndex: nextVariant, valid };
+    }
+
+    case 'REFLECT': {
+      if (state.phase !== 'selecting') return state;
+      const count = computeVariantCount(state.card, state.shapeIndex);
+      const nextVariant =
+        state.variantIndex % 2 === 0
+          ? Math.min(state.variantIndex + 1, count - 1)
+          : state.variantIndex - 1;
+      const valid =
+        state.anchorRow !== null && state.anchorCol !== null && action.grid
+          ? computeValid(state.card, state.shapeIndex, nextVariant, state.anchorRow, state.anchorCol, action.grid)
+          : state.valid;
+      return { ...state, variantIndex: nextVariant, valid };
+    }
+
+    case 'POINTER_MOVE': {
+      if (state.phase !== 'selecting') return state;
+      const { row, col, grid } = action;
+      const valid = computeValid(state.card, state.shapeIndex, state.variantIndex, row, col, grid);
+      // Moving unlocks so the confirm button only re-appears on a fresh click
+      return { ...state, anchorRow: row, anchorCol: col, locked: false, valid };
+    }
+
+    case 'POINTER_UP': {
+      if (state.phase !== 'selecting') return state;
+      const { row, col, grid } = action;
+      const valid = computeValid(state.card, state.shapeIndex, state.variantIndex, row, col, grid);
+      return { ...state, anchorRow: row, anchorCol: col, locked: true, valid };
+    }
+
     case 'CONFIRM': {
-      if (state.phase !== 'confirm') return state;
+      if (state.phase !== 'selecting' || !state.locked || !state.valid) return state;
       return { phase: 'submitted' };
     }
 
@@ -216,22 +174,26 @@ export function usePlacement() {
 
 export function getGhostInfo(
   placementState: PlacementState,
-  grid: Grid,
+  _grid: Grid,
 ): {
   ghostCoords: [number, number][] | undefined;
   ghostTerrain: TerrainType | undefined;
   ghostValid: boolean | undefined;
 } {
-  if (placementState.phase !== 'position' && placementState.phase !== 'confirm') {
+  if (placementState.phase !== 'selecting') {
     return { ghostCoords: undefined, ghostTerrain: undefined, ghostValid: undefined };
   }
 
-  const { card, shapeIndex, variantIndex, anchorRow, anchorCol } = placementState;
+  const { card, shapeIndex, variantIndex, terrain, anchorRow, anchorCol, valid } = placementState;
+
+  if (anchorRow === null || anchorCol === null) {
+    return { ghostCoords: undefined, ghostTerrain: terrain, ghostValid: undefined };
+  }
+
   const shape = getShapeCoords(card, shapeIndex);
   const variants = getVariants(shape);
   const coords = variants[variantIndex % variants.length];
   const resolved = resolveCoords(coords, [anchorRow, anchorCol]) as [number, number][];
-  const valid = isValidPlacement(grid, coords, [anchorRow, anchorCol], getTerrain(card));
 
-  return { ghostCoords: resolved, ghostTerrain: getTerrain(card), ghostValid: valid };
+  return { ghostCoords: resolved, ghostTerrain: terrain, ghostValid: valid ?? undefined };
 }
