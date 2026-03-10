@@ -172,12 +172,11 @@ export function GameRoom({ player, room, onLeave, onLogout }: Props) {
                 ghostValid={ghostValid}
                 interactive={isInteractive}
                 showCoins
-                onCellTap={(row, col) => {
-                  if (placementState.phase === 'position') {
-                    dispatch({ type: 'POINTER_UP', row, col, grid: myGrid });
-                  } else if (isInteractive) {
-                    dispatch({ type: 'POINTER_MOVE', row, col, grid: myGrid });
-                  }
+                onCellMove={(row, col) => {
+                  if (isInteractive) dispatch({ type: 'POINTER_MOVE', row, col, grid: myGrid });
+                }}
+                onCellUp={(row, col) => {
+                  if (isInteractive) dispatch({ type: 'POINTER_UP', row, col, grid: myGrid });
                 }}
               />
 

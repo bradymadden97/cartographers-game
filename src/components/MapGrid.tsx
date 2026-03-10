@@ -23,7 +23,8 @@ interface MapGridProps {
   ghostCoords?: [number, number][];
   ghostTerrain?: TerrainType;
   ghostValid?: boolean;
-  onCellTap?: (row: number, col: number) => void;
+  onCellMove?: (row: number, col: number) => void;
+  onCellUp?: (row: number, col: number) => void;
   interactive?: boolean;
   showCoins?: boolean;
   dimmed?: boolean;
@@ -35,7 +36,8 @@ export function MapGrid({
   ghostCoords,
   ghostTerrain,
   ghostValid,
-  onCellTap,
+  onCellMove,
+  onCellUp,
   interactive = false,
   showCoins = false,
   dimmed = false,
@@ -43,6 +45,7 @@ export function MapGrid({
 }: MapGridProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const isDragging = useRef(false);
+  const lastCell = useRef<[number, number] | null>(null);
 
   const getCellFromPoint = useCallback(
     (clientX: number, clientY: number): [number, number] | null => {
@@ -60,27 +63,35 @@ export function MapGrid({
 
   const handlePointerDown = useCallback(
     (e: React.PointerEvent<SVGSVGElement>) => {
-      if (!interactive || !onCellTap) return;
+      if (!interactive || !onCellMove) return;
       isDragging.current = true;
       (e.currentTarget as SVGSVGElement).setPointerCapture(e.pointerId);
       const cell = getCellFromPoint(e.clientX, e.clientY);
-      if (cell) onCellTap(cell[0], cell[1]);
+      if (cell) { lastCell.current = cell; onCellMove(cell[0], cell[1]); }
     },
-    [interactive, onCellTap, getCellFromPoint],
+    [interactive, onCellMove, getCellFromPoint],
   );
 
   const handlePointerMove = useCallback(
     (e: React.PointerEvent<SVGSVGElement>) => {
-      if (!interactive || !onCellTap || !isDragging.current) return;
+      if (!interactive || !onCellMove || !isDragging.current) return;
       const cell = getCellFromPoint(e.clientX, e.clientY);
-      if (cell) onCellTap(cell[0], cell[1]);
+      if (cell) { lastCell.current = cell; onCellMove(cell[0], cell[1]); }
     },
-    [interactive, onCellTap, getCellFromPoint],
+    [interactive, onCellMove, getCellFromPoint],
   );
 
-  const handlePointerUp = useCallback(() => {
-    isDragging.current = false;
-  }, []);
+  const handlePointerUp = useCallback(
+    (e: React.PointerEvent<SVGSVGElement>) => {
+      isDragging.current = false;
+      // Use the exact pointer-up position for the commit; fall back to last
+      // known cell in case the pointer left the grid before release.
+      const cell = getCellFromPoint(e.clientX, e.clientY) ?? lastCell.current;
+      lastCell.current = null;
+      if (cell && onCellUp) onCellUp(cell[0], cell[1]);
+    },
+    [onCellUp, getCellFromPoint],
+  );
 
   const ghostSet = new Set(ghostCoords?.map(([r, c]) => `${r},${c}`) ?? []);
   const ghostFill = ghostTerrain ? TERRAIN_FILL[ghostTerrain] : '#ffffff';
@@ -95,7 +106,7 @@ export function MapGrid({
       aria-label={playerId ? `Map for player ${playerId}` : 'Map'}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
-      onPointerUp={handlePointerUp}
+      onPointerUp={handlePointerUp as React.PointerEventHandler<SVGSVGElement>}
     >
       {/* Parchment background */}
       <rect x={LW} y={0} width={GRID_PX} height={GRID_PX} fill="#e8d5b0" />
