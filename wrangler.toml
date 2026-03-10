@@ -11,15 +11,4 @@ class_name = "GameRoom"
 
 [[migrations]]
 tag = "v1"
-new_classes = ["GameRoom"]
-
-[env.preview]
-assets = { directory = "dist" }
-
-[[env.preview.durable_objects.bindings]]
-name = "GAME_ROOM"
-class_name = "GameRoom"
-
-[[env.preview.migrations]]
-tag = "v1"
-new_classes = ["GameRoom"]
+new_sqlite_classes = ["GameRoom"]
