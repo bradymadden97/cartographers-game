@@ -99,8 +99,8 @@ interface CardDisplayProps {
   card: Card;
   selectedShapeIndex: number; // -1 = nothing selected yet
   variantIndex: number;
-  overrideTerrain: TerrainType | null;
-  onOverrideTerrain: (t: TerrainType | null) => void;
+  terrain: TerrainType;
+  onSetTerrain: (t: TerrainType) => void;
   onSelectShape: (index: number) => void;
   onRotate: () => void;
   onReflect: () => void;
@@ -110,8 +110,8 @@ export function CardDisplay({
   card,
   selectedShapeIndex,
   variantIndex,
-  overrideTerrain,
-  onOverrideTerrain,
+  terrain,
+  onSetTerrain,
   onSelectShape,
   onRotate,
   onReflect,
@@ -121,8 +121,6 @@ export function CardDisplay({
   const exploreCard = !isAmbush ? (card as ExploreCard) : null;
 
   const [pickerOpen, setPickerOpen] = useState(false);
-
-  const displayTerrain: TerrainType = overrideTerrain ?? card.terrain;
 
   const shapes: ShapeCoords[] = ambushCard
     ? [ambushCard.shape]
@@ -156,7 +154,7 @@ export function CardDisplay({
               title={`Shape ${i + 1}`}
               aria-pressed={isSelected}
             >
-              <MiniShapeGrid coords={preview} terrain={displayTerrain} />
+              <MiniShapeGrid coords={preview} terrain={terrain} />
             </button>
           );
         })}
@@ -171,10 +169,10 @@ export function CardDisplay({
           className="card-toolbar__btn card-toolbar__terrain"
           onClick={() => setPickerOpen(true)}
           title="Choose terrain"
-          aria-label={`Terrain: ${displayTerrain}`}
+          aria-label={`Terrain: ${terrain}`}
           disabled={isAmbush}
         >
-          <TerrainCell terrain={displayTerrain} size={30} />
+          <TerrainCell terrain={terrain} size={30} />
         </button>
 
         {/* Rotate */}
@@ -200,8 +198,8 @@ export function CardDisplay({
 
       {pickerOpen && (
         <TerrainPicker
-          current={displayTerrain}
-          onSelect={onOverrideTerrain}
+          current={terrain}
+          onSelect={onSetTerrain}
           onClose={() => setPickerOpen(false)}
         />
       )}

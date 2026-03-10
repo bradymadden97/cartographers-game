@@ -25,7 +25,6 @@ export function GameRoom({ player, room, onLeave, onLogout }: Props) {
   const { gameState, status, error, send } = useGameSocket(room.roomId, player.name);
   const { placementState, dispatch } = usePlacement();
   const [scoreOpen, setScoreOpen] = useState(false);
-  const [overrideTerrain, setOverrideTerrain] = useState<import('../../worker/types').TerrainType | null>(null);
 
   const myPlayer = gameState?.players.find((p: PlayerInfo) => p.id === player.id);
   const myState = myPlayer ? gameState?.playerStates[myPlayer.id] : undefined;
@@ -41,11 +40,10 @@ export function GameRoom({ player, room, onLeave, onLogout }: Props) {
     }
   }, [gameState?.phase, room.roomId]);
 
-  // When a new round starts, feed the card into the placement state machine and reset overrides
+  // When a new round starts, feed the card into the placement state machine
   useEffect(() => {
     if (round?.currentCard) {
       dispatch({ type: 'CARD_RECEIVED', card: round.currentCard });
-      setOverrideTerrain(null);
     }
   }, [round?.roundNumber]);
 
@@ -57,15 +55,16 @@ export function GameRoom({ player, room, onLeave, onLogout }: Props) {
   }, [round?.placements, myPlayer?.id]);
 
   function handleConfirm() {
-    if (placementState.phase !== 'confirm' || !placementState.valid) return;
+    if (placementState.phase !== 'selecting' || !placementState.locked || !placementState.valid) return;
     if (!round) return;
 
-    const { card, shapeIndex, variantIndex, anchorRow, anchorCol } = placementState;
+    const { card, shapeIndex, variantIndex, anchorRow, anchorCol, terrain } = placementState;
+    if (anchorRow === null || anchorCol === null) return;
     const payload: PlacementPayload = {
       shapeIndex,
       variantIndex,
       origin: [anchorRow, anchorCol],
-      ...(overrideTerrain ? { terrain: overrideTerrain } : {}),
+      terrain,
     };
 
     if (card.terrain === 'monster') {
@@ -81,21 +80,16 @@ export function GameRoom({ player, room, onLeave, onLogout }: Props) {
   }
 
   const myGrid = myState?.grid;
-  const { ghostCoords, ghostTerrain: rawGhostTerrain, ghostValid } = myGrid
+  const { ghostCoords, ghostTerrain, ghostValid } = myGrid
     ? getGhostInfo(placementState, myGrid)
     : { ghostCoords: undefined, ghostTerrain: undefined, ghostValid: undefined };
-  // Use the player's terrain override for the ghost preview if set
-  const ghostTerrain = overrideTerrain ?? rawGhostTerrain;
 
-  // -1 means no shape explicitly selected yet (select_shape phase)
-  const shapeIndex = 'shapeIndex' in placementState ? placementState.shapeIndex : -1;
-  const variantIndex = 'variantIndex' in placementState ? placementState.variantIndex : 0;
-  const card = 'card' in placementState ? placementState.card : null;
+  const shapeIndex = placementState.phase === 'selecting' ? placementState.shapeIndex : -1;
+  const variantIndex = placementState.phase === 'selecting' ? placementState.variantIndex : 0;
+  const card = placementState.phase === 'selecting' ? placementState.card : null;
+  const terrain = placementState.phase === 'selecting' ? placementState.terrain : null;
 
-  const isInteractive =
-    placementState.phase !== 'idle' &&
-    placementState.phase !== 'submitted' &&
-    placementState.phase !== 'select_shape';
+  const isInteractive = placementState.phase === 'selecting';
 
   return (
     <div className="game-room">
@@ -153,14 +147,14 @@ export function GameRoom({ player, room, onLeave, onLogout }: Props) {
                 )}
               </div>
 
-              {card && (
+              {card && terrain && (
                 <CardDisplay
                   card={card}
                   selectedShapeIndex={shapeIndex}
                   variantIndex={variantIndex}
-                  overrideTerrain={overrideTerrain}
-                  onOverrideTerrain={setOverrideTerrain}
-                  onSelectShape={(i) => dispatch({ type: 'SELECT_SHAPE', index: i })}
+                  terrain={terrain}
+                  onSetTerrain={(t) => dispatch({ type: 'SET_TERRAIN', terrain: t })}
+                  onSelectShape={(i) => dispatch({ type: 'SELECT_SHAPE', index: i, grid: myGrid })}
                   onRotate={() => dispatch({ type: 'ROTATE', grid: myGrid })}
                   onReflect={() => dispatch({ type: 'REFLECT', grid: myGrid })}
                 />
@@ -181,12 +175,12 @@ export function GameRoom({ player, room, onLeave, onLogout }: Props) {
                 }}
               />
 
-              {placementState.phase === 'confirm' && placementState.valid && (
+              {placementState.phase === 'selecting' && placementState.locked && placementState.valid && (
                 <button className="btn-confirm" onClick={handleConfirm}>
                   Confirm Placement
                 </button>
               )}
-              {placementState.phase === 'confirm' && !placementState.valid && (
+              {placementState.phase === 'selecting' && placementState.locked && placementState.valid === false && (
                 <p className="placement-error">Invalid placement — choose another position</p>
               )}
               {placementState.phase === 'submitted' && (
