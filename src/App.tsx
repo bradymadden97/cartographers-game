@@ -1,61 +1,56 @@
-import { useState } from 'react';
-import { Lobby } from './components/Lobby';
+import { usePathname, navigate } from './router';
+import { Landing } from './components/Landing';
 import { GameRoom } from './components/GameRoom';
 import type { PlayerContext, RoomContext } from './types';
 
 const SESSION_NAME_KEY = 'cartographers_player_name';
 
-function getRoomFromHash(): string {
-  const hash = window.location.hash.slice(1).toUpperCase();
-  return /^[A-Z0-9]{6}$/.test(hash) ? hash : '';
+function parseRoute(pathname: string): { type: 'landing' } | { type: 'room'; roomId: string } | null {
+  if (pathname === '/') return { type: 'landing' };
+  const m = pathname.match(/^\/(lobby|game)\/([A-Z0-9]{6})$/i);
+  if (m) return { type: 'room', roomId: m[2].toUpperCase() };
+  return null;
 }
 
-type AppState =
-  | { view: 'lobby' }
-  | { view: 'game'; roomId: string; playerName: string };
-
 export default function App() {
-  const [state, setState] = useState<AppState>({ view: 'lobby' });
-
+  const pathname = usePathname();
+  const route = parseRoute(pathname);
   const savedName = sessionStorage.getItem(SESSION_NAME_KEY) ?? '';
-  const initialRoomCode = getRoomFromHash();
 
-  function handleJoin(roomId: string, playerName: string) {
-    sessionStorage.setItem(SESSION_NAME_KEY, playerName);
-    window.location.hash = roomId;
-    setState({ view: 'game', roomId, playerName });
+  if (!route) {
+    navigate('/');
+    return null;
   }
 
-  function handleLeave() {
-    window.location.hash = '';
-    setState({ view: 'lobby' });
-  }
-
-  function handleLogout() {
-    sessionStorage.removeItem(SESSION_NAME_KEY);
-    window.location.hash = '';
-    setState({ view: 'lobby' });
-  }
-
-  if (state.view === 'game') {
-    const player: PlayerContext = { name: state.playerName };
-    const room: RoomContext = { roomId: state.roomId };
+  if (route.type === 'room') {
+    if (!savedName) {
+      navigate(`/?join=${route.roomId}`);
+      return null;
+    }
+    const player: PlayerContext = { name: savedName };
+    const room: RoomContext = { roomId: route.roomId };
     return (
       <GameRoom
         player={player}
         room={room}
-        onLeave={handleLeave}
-        onLogout={handleLogout}
+        onLeave={() => navigate('/')}
+        onLogout={() => {
+          sessionStorage.removeItem(SESSION_NAME_KEY);
+          navigate('/');
+        }}
       />
     );
   }
 
+  const initialRoomCode = new URLSearchParams(window.location.search).get('join') ?? '';
   return (
-    <Lobby
+    <Landing
       initialName={savedName}
       initialRoomCode={initialRoomCode}
-      onJoin={handleJoin}
-      onLogout={savedName ? handleLogout : undefined}
+      onJoin={(roomId, playerName) => {
+        sessionStorage.setItem(SESSION_NAME_KEY, playerName);
+        navigate(`/lobby/${roomId}`);
+      }}
     />
   );
 }

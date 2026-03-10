@@ -97,9 +97,23 @@ export class GameRoom {
 
       switch (msg.type) {
         case 'join': {
-          // Avoid duplicate entries if client reconnects
-          const existing = this.gameState.players.find((p) => p.id === playerId);
-          if (!existing) {
+          const existingByName = this.gameState.players.find((p) => p.name === msg.name);
+          if (existingByName) {
+            // Reconnecting player — remap their state to the new connection's playerId
+            const oldId = existingByName.id;
+            if (oldId !== playerId) {
+              existingByName.id = playerId;
+              if (this.gameState.playerStates[oldId]) {
+                this.gameState.playerStates[playerId] = this.gameState.playerStates[oldId];
+                this.gameState.playerStates[playerId].info.id = playerId;
+                delete this.gameState.playerStates[oldId];
+              }
+              if (this.gameState.round?.placements[oldId] !== undefined) {
+                this.gameState.round.placements[playerId] = this.gameState.round.placements[oldId];
+                delete this.gameState.round.placements[oldId];
+              }
+            }
+          } else {
             const player: PlayerInfo = { id: playerId, name: msg.name };
             this.gameState.players.push(player);
             this.gameState.playerStates[playerId] = {
@@ -108,10 +122,6 @@ export class GameRoom {
               coins: 0,
               seasonScores: [],
             };
-          } else {
-            // Update name in case it changed
-            existing.name = msg.name;
-            this.gameState.playerStates[playerId].info.name = msg.name;
           }
           await this.saveState();
           this.broadcast({ type: 'game_state', state: this.gameState });
@@ -311,9 +321,13 @@ export class GameRoom {
 
   async webSocketClose(ws: WebSocket): Promise<void> {
     const [playerId] = this.state.getTags(ws);
-    this.gameState.players = this.gameState.players.filter((p) => p.id !== playerId);
-    delete this.gameState.playerStates[playerId];
-    await this.saveState();
+    if (this.gameState.phase === 'waiting') {
+      // Remove player fully from the waiting room on disconnect
+      this.gameState.players = this.gameState.players.filter((p) => p.id !== playerId);
+      delete this.gameState.playerStates[playerId];
+      await this.saveState();
+    }
+    // During a game, keep player state so they can reconnect and resume
     this.broadcast({ type: 'game_state', state: this.gameState });
   }
 
