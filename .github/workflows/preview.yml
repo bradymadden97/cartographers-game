@@ -1,0 +1,80 @@
+name: PR Preview
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  # Approval gate: this job targets the protected "pr-preview" environment.
+  # Configure that environment in GitHub (Settings > Environments > pr-preview)
+  # with yourself as a required reviewer to gate all PR preview deployments.
+  approve:
+    name: Await Approval
+    runs-on: ubuntu-latest
+    environment: pr-preview
+    steps:
+      - run: echo "Deployment approved"
+
+  deploy:
+    name: Deploy Preview
+    runs-on: ubuntu-latest
+    needs: approve
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - run: npm ci
+
+      - run: npm run build
+
+      - uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy --env preview --name cartographers-game-pr-${{ github.event.pull_request.number }}
+
+      - name: Post preview URL comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request.number;
+            const workerName = `cartographers-game-pr-${pr}`;
+            const subdomain = '${{ secrets.CLOUDFLARE_WORKERS_SUBDOMAIN }}';
+            const url = `https://${workerName}.${subdomain}.workers.dev`;
+            const body = [
+              '### Preview deployment',
+              '',
+              `Worker: \`${workerName}\``,
+              `URL: ${url}`,
+              '',
+              '> This comment updates on every approved push to this PR.',
+            ].join('\n');
+
+            const { data: comments } = await github.rest.issues.listComments({
+              ...context.repo,
+              issue_number: pr,
+            });
+            const existing = comments.find(
+              c => c.user.type === 'Bot' && c.body.includes('Preview deployment')
+            );
+            if (existing) {
+              await github.rest.issues.updateComment({
+                ...context.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                ...context.repo,
+                issue_number: pr,
+                body,
+              });
+            }
