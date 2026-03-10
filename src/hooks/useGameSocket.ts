@@ -28,6 +28,8 @@ export function useGameSocket(roomId: string, playerName: string) {
       if (msg.type === 'game_state') {
         setGameState(msg.state);
       }
+      // Other message types (round_end, error) can be handled by consumers
+      // via the onMessage callback if needed — for now game_state is the source of truth
     };
 
     ws.onclose = () => setStatus('disconnected');
