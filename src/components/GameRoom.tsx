@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { PlacementPayload, PlayerInfo, PlayerState } from '../../worker/types';
 import { useGameSocket } from '../hooks/useGameSocket';
 import { usePlacement, getGhostInfo } from '../hooks/usePlacement';
@@ -25,6 +25,9 @@ export function GameRoom({ player, room, onLeave, onLogout }: Props) {
   const { gameState, status, error, send } = useGameSocket(room.roomId, player.name, room.mode);
   const { placementState, dispatch } = usePlacement();
   const [scoreOpen, setScoreOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   const myPlayer = gameState?.players.find((p: PlayerInfo) => p.id === player.id);
   const myState = myPlayer ? gameState?.playerStates[myPlayer.id] : undefined;
@@ -55,6 +58,25 @@ export function GameRoom({ player, room, onLeave, onLogout }: Props) {
       dispatch({ type: 'ROUND_END' });
     }
   }, [round?.placements, myPlayer?.id]);
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    if (!menuOpen) return;
+    function handleOutside(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleOutside);
+    return () => document.removeEventListener('mousedown', handleOutside);
+  }, [menuOpen]);
+
+  function handleCopyRoomCode() {
+    navigator.clipboard.writeText(room.roomId).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    }).catch(() => {});
+  }
 
   const myGrid = myState?.grid;
   const card = placementState.phase === 'selecting' ? placementState.card : null;
@@ -102,11 +124,29 @@ export function GameRoom({ player, room, onLeave, onLogout }: Props) {
   return (
     <div className="game-room">
       <header>
-        <button className="btn-secondary" onClick={onLeave}>← Leave</button>
-        <span className="room-code">Room: {room.roomId}</span>
-        <span className={`status status-${status}`}>{status}</span>
+        <button className="btn-icon" onClick={onLeave} aria-label="Leave room">←</button>
+
+        <button className="room-code-btn" onClick={handleCopyRoomCode} title="Tap to copy room code">
+          {room.roomId}
+          {copied && <span className="copied-hint">✓</span>}
+        </button>
+
+        {status !== 'connected' && (
+          <span className={`status-dot status-dot--${status}`} title={status} />
+        )}
         {error && <span className="server-error">{error}</span>}
-        <button className="btn-secondary btn-sm" onClick={onLogout}>Log out</button>
+
+        <div className="menu-wrap" ref={menuRef}>
+          <button className="btn-icon" onClick={() => setMenuOpen(o => !o)} aria-label="Menu">⋯</button>
+          {menuOpen && (
+            <div className="dropdown">
+              <div className="dropdown__name">{player.name}</div>
+              <hr className="dropdown__divider" />
+              <button className="dropdown__item" onClick={() => { setMenuOpen(false); onLeave(); }}>Leave room</button>
+              <button className="dropdown__item" onClick={() => { setMenuOpen(false); onLogout(); }}>Log out</button>
+            </div>
+          )}
+        </div>
       </header>
 
       {gameState ? (
@@ -199,9 +239,10 @@ export function GameRoom({ player, room, onLeave, onLogout }: Props) {
                 {gameState.players.map((p: PlayerInfo) => (
                   <span
                     key={p.id}
-                    className={`player-chip player-chip--${round.placements[p.id] ?? 'pending'}`}
+                    className={`player-chip player-chip--${round.placements[p.id] ?? 'pending'}${p.id === player.id ? ' player-chip--me' : ''}`}
                   >
-                    {p.name} {round.placements[p.id] === 'placed' ? '✓' : '…'}
+                    {p.id === player.id ? 'You' : (p.name[0] ?? '?').toUpperCase()}
+                    {' '}{round.placements[p.id] === 'placed' ? '✓' : '…'}
                   </span>
                 ))}
               </div>
