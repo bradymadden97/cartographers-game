@@ -71,6 +71,7 @@ export type RoundState = {
   seasonIndex: number;   // 0-3
   elapsedTime: number;   // cumulative time within current season
   placements: Record<string, PlacementStatus>; // playerId -> status
+  scoringCards: [string, string]; // which scoring cards apply this season
 };
 
 // Game
@@ -90,6 +91,7 @@ export type PlacementPayload = {
   variantIndex: number;  // index into getVariants(shape)
   origin: [number, number]; // [row, col] anchor
   terrain?: TerrainType;   // player-selected terrain override (for multi-terrain cards)
+  forcedSingle?: boolean;  // true when no valid shape placement exists; places 1 cell at origin
 };
 
 export type ClientMessage =

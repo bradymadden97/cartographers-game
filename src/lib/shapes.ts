@@ -161,6 +161,17 @@ export const EXPLORE_CARDS: ExploreCard[] = [
   },
 ];
 
+/**
+ * Returns true if choosing `shapeIndex` on this card earns the player a coin.
+ * The smaller shape option always earns a coin; on a tie the second option does.
+ */
+export function shapeGivesCoins(card: ExploreCard, shapeIndex: number): boolean {
+  if (card.shapes.length < 2) return false;
+  const chosenSize = card.shapes[shapeIndex].length;
+  const otherSize  = card.shapes[1 - shapeIndex].length;
+  return chosenSize < otherSize || (chosenSize === otherSize && shapeIndex === 1);
+}
+
 export const AMBUSH_CARDS: AmbushCard[] = [
   {
     id: 'gnoll_raid',
