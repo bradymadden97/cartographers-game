@@ -811,3 +811,149 @@ main {
   color: #ef4444;
   font-size: 0.75rem;
 }
+
+/* --- Player Gallery Overlay --- */
+
+.player-gallery {
+  position: fixed;
+  inset: 0;
+  background: var(--bg);
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  animation: slideUp 0.22s ease;
+}
+
+.player-gallery__header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: calc(0.4rem + env(safe-area-inset-top)) 0.5rem 0.5rem;
+  background: var(--surface);
+  border-bottom: 1px solid var(--primary);
+  flex-shrink: 0;
+}
+
+.player-gallery__tabs {
+  flex: 1;
+  display: flex;
+  gap: 0.4rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.player-gallery__tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.player-gallery__tab {
+  padding: 0.3rem 0.75rem;
+  border-radius: 999px;
+  border: 1px solid var(--primary);
+  background: transparent;
+  color: var(--text-muted);
+  font-family: 'Cinzel', serif;
+  font-size: 0.72rem;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  touch-action: manipulation;
+}
+
+.player-gallery__tab--active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--bg);
+  font-weight: 600;
+}
+
+.player-gallery__nav {
+  flex-shrink: 0;
+  font-size: 1.4rem;
+  line-height: 1;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+}
+
+.player-gallery__nav:disabled {
+  opacity: 0.25;
+  cursor: default;
+}
+
+.player-gallery__close {
+  flex-shrink: 0;
+  font-size: 0.85rem;
+}
+
+/* Scrollable slides container */
+.player-gallery__slides {
+  flex: 1;
+  display: flex;
+  overflow-x: scroll;
+  scroll-snap-type: x mandatory;
+  /* Prevent iOS from interpreting a swipe-to-edge as browser back */
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.player-gallery__slides::-webkit-scrollbar {
+  display: none;
+}
+
+.player-gallery__slide {
+  flex: 0 0 100%;
+  scroll-snap-align: start;
+  overflow-y: auto;
+  padding: 1rem 1rem calc(0.5rem + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+.player-gallery__slide-name {
+  font-family: 'Cinzel', serif;
+  font-size: 0.95rem;
+  color: var(--text);
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  width: 100%;
+  justify-content: center;
+}
+
+.player-gallery__slide-total {
+  font-size: 0.75rem;
+  color: var(--accent);
+  font-style: italic;
+}
+
+/* Dot pips at the bottom */
+.player-gallery__pips {
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0 calc(0.5rem + env(safe-area-inset-bottom));
+  flex-shrink: 0;
+  background: var(--bg);
+}
+
+.player-gallery__pip {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: none;
+  background: var(--primary);
+  padding: 0;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.15s;
+  touch-action: manipulation;
+}
+
+.player-gallery__pip--active {
+  background: var(--accent);
+  transform: scale(1.3);
+}

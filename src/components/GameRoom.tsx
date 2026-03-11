@@ -5,6 +5,7 @@ import { usePlacement, getGhostInfo } from '../hooks/usePlacement';
 import { MapGrid } from './MapGrid';
 import { CardDisplay } from './CardDisplay';
 import { ScorePanel, CoinSVG } from './ScorePanel';
+import { PlayerGallery } from './PlayerGallery';
 import type { PlayerContext, RoomContext } from '../types';
 
 interface Props {
@@ -25,6 +26,7 @@ export function GameRoom({ player, room, onLeave, onLogout }: Props) {
   const { gameState, status, error, send } = useGameSocket(room.roomId, player.name, room.mode);
   const { placementState, dispatch } = usePlacement();
   const [scoreOpen, setScoreOpen] = useState(false);
+  const [galleryOpen, setGalleryOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -191,6 +193,15 @@ export function GameRoom({ player, room, onLeave, onLogout }: Props) {
                     >
                       📊
                     </button>
+                    {gameState.players.length > 1 && (
+                      <button
+                        className="score-btn btn-secondary"
+                        onClick={() => setGalleryOpen(true)}
+                        aria-label="View all players"
+                      >
+                        👥
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
@@ -253,6 +264,17 @@ export function GameRoom({ player, room, onLeave, onLogout }: Props) {
                   playerState={myState}
                   currentSeasonIndex={round.seasonIndex}
                   onClose={() => setScoreOpen(false)}
+                />
+              )}
+
+              {/* Player gallery overlay */}
+              {galleryOpen && (
+                <PlayerGallery
+                  players={gameState.players}
+                  playerStates={gameState.playerStates}
+                  myPlayerId={player.id}
+                  currentSeasonIndex={round.seasonIndex}
+                  onClose={() => setGalleryOpen(false)}
                 />
               )}
             </div>
