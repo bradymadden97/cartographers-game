@@ -164,40 +164,151 @@ button:disabled {
 header {
   display: flex;
   align-items: center;
-  padding: 0.6rem 1rem;
+  padding: 0.3rem 0.6rem;
   background: var(--surface);
-  gap: 0.75rem;
+  gap: 0.5rem;
   border-bottom: 1px solid var(--primary);
+  min-height: 0;
 }
 
-.room-code {
+/* Icon-only button (back arrow, ⋯ menu) */
+.btn-icon {
+  background: transparent;
+  width: auto;
+  padding: 0.3rem 0.5rem;
+  border: none;
+  color: var(--text-muted);
+  font-family: 'Cinzel', serif;
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  touch-action: manipulation;
+  border-radius: var(--radius);
+  flex-shrink: 0;
+}
+
+.btn-icon:hover:not(:disabled) {
+  background: var(--primary);
+  color: var(--text);
+}
+
+/* Room code — tappable, copies to clipboard */
+.room-code-btn {
   flex: 1;
+  background: transparent;
+  border: none;
   font-family: 'Cinzel', serif;
   font-weight: 600;
-  letter-spacing: 0.08em;
-  font-size: 0.85rem;
+  letter-spacing: 0.1em;
+  font-size: 0.9rem;
   color: var(--accent);
+  cursor: pointer;
+  padding: 0.25rem 0.35rem;
+  border-radius: var(--radius);
+  text-align: left;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  touch-action: manipulation;
+  min-width: 0;
+  white-space: nowrap;
+  width: auto;
 }
 
-.status {
+.room-code-btn:hover {
+  background: var(--primary);
+}
+
+.copied-hint {
+  font-size: 0.7rem;
+  color: #7ec87a;
   font-family: 'Cinzel', serif;
-  font-size: 0.65rem;
-  padding: 0.2rem 0.6rem;
-  border-radius: 999px;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
 }
 
-.status-connecting { background: #3a2e1e; color: var(--text-muted); }
-.status-connected   { background: #1a3020; color: #7ec87a; }
-.status-disconnected { background: #3a1818; color: #f08878; }
+/* Status dot — only shown when NOT connected */
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.status-dot--connecting {
+  background: #c49a2c;
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+.status-dot--disconnected {
+  background: #ef4444;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.35; }
+}
+
+/* Triple-dot menu */
+.menu-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  background: var(--surface);
+  border: 1px solid var(--primary);
+  border-radius: var(--radius);
+  min-width: 160px;
+  z-index: 200;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+  overflow: hidden;
+}
+
+.dropdown__name {
+  font-family: 'Cinzel', serif;
+  font-size: 0.75rem;
+  color: var(--accent);
+  padding: 0.6rem 0.85rem 0.5rem;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+}
+
+.dropdown__divider {
+  border: none;
+  border-top: 1px solid var(--primary);
+  margin: 0;
+}
+
+.dropdown__item {
+  display: block;
+  width: 100%;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  color: var(--text-muted);
+  font-family: 'Cinzel', serif;
+  font-size: 0.75rem;
+  text-align: left;
+  padding: 0.55rem 0.85rem;
+  cursor: pointer;
+  letter-spacing: 0.04em;
+  touch-action: manipulation;
+  text-transform: none;
+}
+
+.dropdown__item:hover:not(:disabled) {
+  background: var(--primary);
+  color: var(--text);
+}
 
 main {
   flex: 1;
-  padding: 1.25rem;
+  padding: 0.6rem 1rem 1rem;
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: 0.75rem;
   overflow-y: auto;
 }
 
@@ -233,8 +344,8 @@ main {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 1rem;
-  padding: 2rem 0;
+  gap: 0.6rem;
+  padding: 0;
   color: var(--text-muted);
 }
 
@@ -689,14 +800,8 @@ main {
   color: #22c55e;
 }
 
-.round-header {
-  display: flex;
-  gap: 1rem;
-  font-family: 'Cinzel', serif;
-  font-size: 0.8rem;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
+.player-chip--me {
+  border-color: var(--accent);
 }
 
 .server-error {

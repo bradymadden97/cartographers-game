@@ -5,4 +5,5 @@ export interface PlayerContext {
 
 export interface RoomContext {
   roomId: string;
+  mode: 'remote' | 'local';
 }
