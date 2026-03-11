@@ -1,12 +1,17 @@
-import { useEffect, useRef, useState } from 'react';
-import type { PlacementPayload, PlayerInfo, PlayerState } from '../../worker/types';
-import { useGameSocket } from '../hooks/useGameSocket';
-import { usePlacement, getGhostInfo } from '../hooks/usePlacement';
-import { MapGrid } from './MapGrid';
-import { CardDisplay } from './CardDisplay';
-import { ScorePanel, CoinSVG } from './ScorePanel';
-import { computeSeasonScore } from '../../shared/scoring';
-import type { PlayerContext, RoomContext } from '../types';
+import { useEffect, useRef, useState } from "react";
+import type {
+  PlacementPayload,
+  PlayerInfo,
+  PlayerState,
+} from "../../worker/types";
+import { useGameSocket } from "../hooks/useGameSocket";
+import { usePlacement, getGhostInfo } from "../hooks/usePlacement";
+import { MapGrid } from "./MapGrid";
+import { CardDisplay } from "./CardDisplay";
+import { ScorePanel, CoinSVG } from "./ScorePanel";
+import { PlayerGallery } from "./PlayerGallery";
+import { computeSeasonScore } from "../../shared/scoring";
+import type { PlayerContext, RoomContext } from "../types";
 
 interface Props {
   player: PlayerContext;
@@ -16,21 +21,28 @@ interface Props {
 }
 
 const SEASON_LABELS: Record<string, string> = {
-  spring: '🌱 Spring',
-  summer: '☀️ Summer',
-  fall:   '🍂 Fall',
-  winter: '❄️ Winter',
+  spring: "🌱 Spring",
+  summer: "☀️ Summer",
+  fall: "🍂 Fall",
+  winter: "❄️ Winter",
 };
 
 export function GameRoom({ player, room, onLeave, onLogout }: Props) {
-  const { gameState, status, error, send } = useGameSocket(room.roomId, player.name, room.mode);
+  const { gameState, status, error, send } = useGameSocket(
+    room.roomId,
+    player.name,
+    room.mode,
+  );
   const { placementState, dispatch } = usePlacement();
   const [scoreOpen, setScoreOpen] = useState(false);
+  const [galleryOpen, setGalleryOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  const myPlayer = gameState?.players.find((p: PlayerInfo) => p.id === player.id);
+  const myPlayer = gameState?.players.find(
+    (p: PlayerInfo) => p.id === player.id,
+  );
   const myState = myPlayer ? gameState?.playerStates[myPlayer.id] : undefined;
   const round = gameState?.round ?? null;
 
@@ -38,25 +50,29 @@ export function GameRoom({ player, room, onLeave, onLogout }: Props) {
   useEffect(() => {
     if (!gameState) return;
     const target =
-      room.mode === 'local'
+      room.mode === "local"
         ? `/solo/${room.roomId}`
-        : `/${gameState.phase === 'playing' ? 'game' : 'lobby'}/${room.roomId}`;
+        : `/${gameState.phase === "playing" ? "game" : "lobby"}/${room.roomId}`;
     if (window.location.pathname !== target) {
-      history.replaceState(null, '', target);
+      history.replaceState(null, "", target);
     }
   }, [gameState?.phase, room.roomId, room.mode]);
 
   // When a new round starts, feed the card into the placement state machine
   useEffect(() => {
     if (round?.currentCard && myState?.grid) {
-      dispatch({ type: 'CARD_RECEIVED', card: round.currentCard, grid: myState.grid });
+      dispatch({
+        type: "CARD_RECEIVED",
+        card: round.currentCard,
+        grid: myState.grid,
+      });
     }
   }, [round?.roundNumber]);
 
   // When the round ends (placement registered), reset
   useEffect(() => {
-    if (round && myPlayer && round.placements[myPlayer.id] === 'placed') {
-      dispatch({ type: 'ROUND_END' });
+    if (round && myPlayer && round.placements[myPlayer.id] === "placed") {
+      dispatch({ type: "ROUND_END" });
     }
   }, [round?.placements, myPlayer?.id]);
 
@@ -68,28 +84,42 @@ export function GameRoom({ player, room, onLeave, onLogout }: Props) {
         setMenuOpen(false);
       }
     }
-    document.addEventListener('mousedown', handleOutside);
-    return () => document.removeEventListener('mousedown', handleOutside);
+    document.addEventListener("mousedown", handleOutside);
+    return () => document.removeEventListener("mousedown", handleOutside);
   }, [menuOpen]);
 
   function handleCopyRoomCode() {
-    navigator.clipboard.writeText(room.roomId).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    }).catch(() => {});
+    navigator.clipboard
+      .writeText(room.roomId)
+      .then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1500);
+      })
+      .catch(() => {});
   }
 
   const myGrid = myState?.grid;
-  const card = placementState.phase === 'selecting' ? placementState.card : null;
-  const shapeIndex = placementState.phase === 'selecting' ? placementState.shapeIndex : -1;
-  const variantIndex = placementState.phase === 'selecting' ? placementState.variantIndex : 0;
-  const terrain = placementState.phase === 'selecting' ? placementState.terrain : null;
-  const noValidPlacement = placementState.phase === 'selecting' ? placementState.noValidPlacement : false;
+  const card =
+    placementState.phase === "selecting" ? placementState.card : null;
+  const shapeIndex =
+    placementState.phase === "selecting" ? placementState.shapeIndex : -1;
+  const variantIndex =
+    placementState.phase === "selecting" ? placementState.variantIndex : 0;
+  const terrain =
+    placementState.phase === "selecting" ? placementState.terrain : null;
+  const noValidPlacement =
+    placementState.phase === "selecting"
+      ? placementState.noValidPlacement
+      : false;
 
   // During ambush, preview and validate against the target's grid (opponent, or self in solo)
-  const isAmbush = card?.terrain === 'monster';
-  const opponentPlayer = gameState?.players.find((p: PlayerInfo) => p.id !== myPlayer?.id);
-  const opponentGrid = opponentPlayer ? gameState?.playerStates[opponentPlayer.id]?.grid : undefined;
+  const isAmbush = card?.terrain === "monster";
+  const opponentPlayer = gameState?.players.find(
+    (p: PlayerInfo) => p.id !== myPlayer?.id,
+  );
+  const opponentGrid = opponentPlayer
+    ? gameState?.playerStates[opponentPlayer.id]?.grid
+    : undefined;
   const targetGrid = isAmbush ? (opponentGrid ?? myGrid) : myGrid;
 
   // Live season score — recalculated whenever the grid or round changes
@@ -99,10 +129,16 @@ export function GameRoom({ player, room, onLeave, onLogout }: Props) {
       : 0;
 
   function handleConfirm() {
-    if (placementState.phase !== 'selecting' || !placementState.locked || !placementState.valid) return;
+    if (
+      placementState.phase !== "selecting" ||
+      !placementState.locked ||
+      !placementState.valid
+    )
+      return;
     if (!round) return;
 
-    const { card, shapeIndex, variantIndex, anchorRow, anchorCol, terrain } = placementState;
+    const { card, shapeIndex, variantIndex, anchorRow, anchorCol, terrain } =
+      placementState;
     if (anchorRow === null || anchorCol === null) return;
 
     // Forced single-cell fallback
@@ -114,8 +150,8 @@ export function GameRoom({ player, room, onLeave, onLogout }: Props) {
         terrain: terrain ?? undefined,
         forcedSingle: true,
       };
-      send({ type: 'place_terrain', payload });
-      dispatch({ type: 'CONFIRM' });
+      send({ type: "place_terrain", payload });
+      dispatch({ type: "CONFIRM" });
       return;
     }
 
@@ -126,47 +162,79 @@ export function GameRoom({ player, room, onLeave, onLogout }: Props) {
       terrain: terrain ?? undefined,
     };
 
-    if (card.terrain === 'monster') {
+    if (card.terrain === "monster") {
       const targetId = opponentPlayer?.id ?? myPlayer?.id;
       if (targetId) {
-        send({ type: 'place_monster', targetPlayerId: targetId, payload });
+        send({ type: "place_monster", targetPlayerId: targetId, payload });
       }
     } else {
-      send({ type: 'place_terrain', payload });
+      send({ type: "place_terrain", payload });
     }
 
-    dispatch({ type: 'CONFIRM' });
+    dispatch({ type: "CONFIRM" });
   }
 
   const { ghostCoords, ghostTerrain, ghostValid } = targetGrid
     ? getGhostInfo(placementState, targetGrid)
-    : { ghostCoords: undefined, ghostTerrain: undefined, ghostValid: undefined };
+    : {
+        ghostCoords: undefined,
+        ghostTerrain: undefined,
+        ghostValid: undefined,
+      };
 
-  const isInteractive = placementState.phase === 'selecting';
+  const isInteractive = placementState.phase === "selecting";
 
   return (
     <div className="game-room">
       <header>
-        <button className="btn-icon" onClick={onLeave} aria-label="Leave room">←</button>
+        <button className="btn-icon" onClick={onLeave} aria-label="Leave room">
+          ←
+        </button>
 
-        <button className="room-code-btn" onClick={handleCopyRoomCode} title="Tap to copy room code">
+        <button
+          className="room-code-btn"
+          onClick={handleCopyRoomCode}
+          title="Tap to copy room code"
+        >
           {room.roomId}
           {copied && <span className="copied-hint">✓</span>}
         </button>
 
-        {status !== 'connected' && (
+        {status !== "connected" && (
           <span className={`status-dot status-dot--${status}`} title={status} />
         )}
         {error && <span className="server-error">{error}</span>}
 
         <div className="menu-wrap" ref={menuRef}>
-          <button className="btn-icon" onClick={() => setMenuOpen(o => !o)} aria-label="Menu">⋯</button>
+          <button
+            className="btn-icon"
+            onClick={() => setMenuOpen((o) => !o)}
+            aria-label="Menu"
+          >
+            ⋯
+          </button>
           {menuOpen && (
             <div className="dropdown">
               <div className="dropdown__name">{player.name}</div>
               <hr className="dropdown__divider" />
-              <button className="dropdown__item" onClick={() => { setMenuOpen(false); onLeave(); }}>Leave room</button>
-              <button className="dropdown__item" onClick={() => { setMenuOpen(false); onLogout(); }}>Log out</button>
+              <button
+                className="dropdown__item"
+                onClick={() => {
+                  setMenuOpen(false);
+                  onLeave();
+                }}
+              >
+                Leave room
+              </button>
+              <button
+                className="dropdown__item"
+                onClick={() => {
+                  setMenuOpen(false);
+                  onLogout();
+                }}
+              >
+                Log out
+              </button>
             </div>
           )}
         </div>
@@ -175,32 +243,41 @@ export function GameRoom({ player, room, onLeave, onLogout }: Props) {
       {gameState ? (
         <main>
           {/* Waiting / lobby */}
-          {gameState.phase === 'waiting' && (
+          {gameState.phase === "waiting" && (
             <section className="lobby">
               <h2>Players ({gameState.players.length})</h2>
               <ul>
                 {gameState.players.map((p: PlayerInfo) => (
-                  <li key={p.id} className={p.id === player.id ? 'me' : ''}>
+                  <li key={p.id} className={p.id === player.id ? "me" : ""}>
                     {p.name}
                   </li>
                 ))}
               </ul>
-              <button onClick={() => send({ type: 'start_game' })}>Start Game</button>
+              <button onClick={() => send({ type: "start_game" })}>
+                Start Game
+              </button>
             </section>
           )}
 
           {/* Playing */}
-          {gameState.phase === 'playing' && round && myGrid && (
+          {gameState.phase === "playing" && round && myGrid && (
             <div className="game-board">
               {/* Sub-header: season/round info + live score + coin counter + score button */}
               <div className="round-header">
                 <div className="round-header__left">
-                  <span className="round-header__season">{SEASON_LABELS[round.season]}</span>
-                  <span className="round-header__round">Round {round.roundNumber}</span>
+                  <span className="round-header__season">
+                    {SEASON_LABELS[round.season]}
+                  </span>
+                  <span className="round-header__round">
+                    Round {round.roundNumber}
+                  </span>
                   <span className="round-header__time">
                     {round.elapsedTime} / {[8, 8, 7, 6][round.seasonIndex]}
                   </span>
-                  <span className="round-header__live-score" title="Projected score this season">
+                  <span
+                    className="round-header__live-score"
+                    title="Projected score this season"
+                  >
                     ~{liveScore} pts
                   </span>
                 </div>
@@ -217,6 +294,15 @@ export function GameRoom({ player, room, onLeave, onLogout }: Props) {
                     >
                       📊
                     </button>
+                    {gameState.players.length > 1 && (
+                      <button
+                        className="score-btn btn-secondary"
+                        onClick={() => setGalleryOpen(true)}
+                        aria-label="View all players"
+                      >
+                        👥
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
@@ -228,10 +314,22 @@ export function GameRoom({ player, room, onLeave, onLogout }: Props) {
                   variantIndex={variantIndex}
                   terrain={terrain}
                   noValidPlacement={noValidPlacement}
-                  onSetTerrain={(t) => dispatch({ type: 'SET_TERRAIN', terrain: t })}
-                  onSelectShape={(i) => dispatch({ type: 'SELECT_SHAPE', index: i, grid: targetGrid ?? myGrid })}
-                  onRotate={() => dispatch({ type: 'ROTATE', grid: targetGrid ?? myGrid })}
-                  onReflect={() => dispatch({ type: 'REFLECT', grid: targetGrid ?? myGrid })}
+                  onSetTerrain={(t) =>
+                    dispatch({ type: "SET_TERRAIN", terrain: t })
+                  }
+                  onSelectShape={(i) =>
+                    dispatch({
+                      type: "SELECT_SHAPE",
+                      index: i,
+                      grid: targetGrid ?? myGrid,
+                    })
+                  }
+                  onRotate={() =>
+                    dispatch({ type: "ROTATE", grid: targetGrid ?? myGrid })
+                  }
+                  onReflect={() =>
+                    dispatch({ type: "REFLECT", grid: targetGrid ?? myGrid })
+                  }
                 />
               )}
 
@@ -243,22 +341,40 @@ export function GameRoom({ player, room, onLeave, onLogout }: Props) {
                 interactive={isInteractive}
                 showCoins
                 onCellMove={(row, col) => {
-                  if (isInteractive) dispatch({ type: 'POINTER_MOVE', row, col, grid: targetGrid ?? myGrid });
+                  if (isInteractive)
+                    dispatch({
+                      type: "POINTER_MOVE",
+                      row,
+                      col,
+                      grid: targetGrid ?? myGrid,
+                    });
                 }}
                 onCellUp={(row, col) => {
-                  if (isInteractive) dispatch({ type: 'POINTER_UP', row, col, grid: targetGrid ?? myGrid });
+                  if (isInteractive)
+                    dispatch({
+                      type: "POINTER_UP",
+                      row,
+                      col,
+                      grid: targetGrid ?? myGrid,
+                    });
                 }}
               />
 
-              {placementState.phase === 'selecting' && placementState.locked && placementState.valid && (
-                <button className="btn-confirm" onClick={handleConfirm}>
-                  Confirm Placement
-                </button>
-              )}
-              {placementState.phase === 'selecting' && placementState.locked && placementState.valid === false && (
-                <p className="placement-error">Invalid placement — choose another position</p>
-              )}
-              {placementState.phase === 'submitted' && (
+              {placementState.phase === "selecting" &&
+                placementState.locked &&
+                placementState.valid && (
+                  <button className="btn-confirm" onClick={handleConfirm}>
+                    Confirm Placement
+                  </button>
+                )}
+              {placementState.phase === "selecting" &&
+                placementState.locked &&
+                placementState.valid === false && (
+                  <p className="placement-error">
+                    Invalid placement — choose another position
+                  </p>
+                )}
+              {placementState.phase === "submitted" && (
                 <p className="placement-waiting">Waiting for other players…</p>
               )}
 
@@ -266,10 +382,12 @@ export function GameRoom({ player, room, onLeave, onLogout }: Props) {
                 {gameState.players.map((p: PlayerInfo) => (
                   <span
                     key={p.id}
-                    className={`player-chip player-chip--${round.placements[p.id] ?? 'pending'}${p.id === player.id ? ' player-chip--me' : ''}`}
+                    className={`player-chip player-chip--${round.placements[p.id] ?? "pending"}${p.id === player.id ? " player-chip--me" : ""}`}
                   >
-                    {p.id === player.id ? 'You' : (p.name[0] ?? '?').toUpperCase()}
-                    {' '}{round.placements[p.id] === 'placed' ? '✓' : '…'}
+                    {p.id === player.id
+                      ? "You"
+                      : (p.name[0] ?? "?").toUpperCase()}{" "}
+                    {round.placements[p.id] === "placed" ? "✓" : "…"}
                   </span>
                 ))}
               </div>
@@ -284,20 +402,38 @@ export function GameRoom({ player, room, onLeave, onLogout }: Props) {
                   onClose={() => setScoreOpen(false)}
                 />
               )}
+
+              {/* Player gallery overlay */}
+              {galleryOpen && (
+                <PlayerGallery
+                  players={gameState.players}
+                  playerStates={gameState.playerStates}
+                  myPlayerId={player.id}
+                  currentSeasonIndex={round.seasonIndex}
+                  onClose={() => setGalleryOpen(false)}
+                />
+              )}
             </div>
           )}
 
           {/* Finished */}
-          {gameState.phase === 'finished' && (
+          {gameState.phase === "finished" && (
             <div className="game-over">
               <h2>Game Over</h2>
               <div className="game-over__scores">
                 {gameState.players.map((p: PlayerInfo) => {
-                  const ps: PlayerState | undefined = gameState.playerStates[p.id];
+                  const ps: PlayerState | undefined =
+                    gameState.playerStates[p.id];
                   const isMe = p.id === player.id;
                   return ps ? (
-                    <div key={p.id} className={`game-over__player${isMe ? ' game-over__player--me' : ''}`}>
-                      <div className="game-over__player-name">{p.name}{isMe ? ' (you)' : ''}</div>
+                    <div
+                      key={p.id}
+                      className={`game-over__player${isMe ? " game-over__player--me" : ""}`}
+                    >
+                      <div className="game-over__player-name">
+                        {p.name}
+                        {isMe ? " (you)" : ""}
+                      </div>
                       <ScorePanel
                         playerState={ps}
                         currentSeasonIndex={-1}
