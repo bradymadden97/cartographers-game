@@ -1,4 +1,6 @@
-*, *::before, *::after {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
@@ -246,8 +248,15 @@ header {
 }
 
 @keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50%       { opacity: 0.35; }
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.35;
+  }
 }
 
 /* Triple-dot menu */
@@ -265,7 +274,7 @@ header {
   border-radius: var(--radius);
   min-width: 160px;
   z-index: 200;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
   overflow: hidden;
 }
 
@@ -518,7 +527,7 @@ main {
   max-width: 480px;
   display: block;
   border-radius: 4px;
-  box-shadow: 0 4px 24px rgba(0,0,0,0.5);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5);
 }
 
 /* --- Round header (sub-bar below nav) --- */
@@ -712,13 +721,23 @@ main {
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; }
-  to   { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
 
 @keyframes slideUp {
-  from { transform: translateY(100%); }
-  to   { transform: translateY(0); }
+  from {
+    transform: translateY(100%);
+  }
+
+  to {
+    transform: translateY(0);
+  }
 }
 
 /* --- Game Over --- */
@@ -811,6 +830,7 @@ main {
   color: #ef4444;
   font-size: 0.75rem;
 }
+
 
 /* --- Player Gallery Overlay --- */
 
@@ -956,4 +976,76 @@ main {
 .player-gallery__pip--active {
   background: var(--accent);
   transform: scale(1.3);
-}
+
+  /* --- Live score in round header --- */
+
+  .round-header__live-score {
+    font-family: 'IM Fell English', Georgia, serif;
+    font-size: 0.8rem;
+    color: var(--accent);
+    opacity: 0.8;
+  }
+
+  /* --- Coin badge on shape buttons --- */
+
+  .shape-coin-badge {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    pointer-events: none;
+    line-height: 1;
+  }
+
+  /* --- No-placement banner in card toolbar --- */
+
+  .card-toolbar__no-placement {
+    flex: 1;
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    font-style: italic;
+    display: flex;
+    align-items: center;
+    padding: 0 0.4rem;
+    line-height: 1.3;
+  }
+
+  /* --- Scoring card info in score panel --- */
+
+  .scoring-card-info {
+    width: 100%;
+    margin-top: 0.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+
+  .scoring-card-info__item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    padding: 0.4rem 0.6rem;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 4px;
+  }
+
+  .scoring-card-info__label {
+    font-family: 'Cinzel', serif;
+    font-size: 0.65rem;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .scoring-card-info__rule {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+  }
+
+  /* --- Live score prefix in season box --- */
+
+  .season-box__live-prefix {
+    font-size: 0.7em;
+    opacity: 0.7;
+    margin-right: 1px;
+  }

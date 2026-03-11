@@ -1,4 +1,5 @@
-import type { Cell, Grid, ShapeCoords, TerrainType } from '../../worker/types';
+import type { AmbushCard, Card, Cell, ExploreCard, Grid, ShapeCoords, TerrainType } from '../../worker/types';
+import { getVariants } from './shapes';
 
 export const GRID_SIZE = 11;
 
@@ -90,6 +91,32 @@ export function placeShape(
     next[r][c].terrain = terrain;
   }
   return next;
+}
+
+/**
+ * Returns true if the given card has at least one valid placement (any shape,
+ * any variant, any origin) on the current grid.  Used to detect the forced
+ * single-cell fallback situation.
+ */
+export function hasAnyValidPlacement(grid: Grid, card: Card): boolean {
+  const shapes: ShapeCoords[] =
+    card.terrain === 'monster'
+      ? [(card as AmbushCard).shape]
+      : (card as ExploreCard).shapes;
+
+  for (const shape of shapes) {
+    const variants = getVariants(shape);
+    for (const variant of variants) {
+      for (let r = 0; r < GRID_SIZE; r++) {
+        for (let c = 0; c < GRID_SIZE; c++) {
+          if (isValidPlacement(grid, variant, [r, c], card.terrain)) {
+            return true;
+          }
+        }
+      }
+    }
+  }
+  return false;
 }
 
 // Returns true if any resolved cell sits on a ruins position
