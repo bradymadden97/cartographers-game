@@ -5,6 +5,7 @@ import { usePlacement, getGhostInfo } from '../hooks/usePlacement';
 import { MapGrid } from './MapGrid';
 import { CardDisplay } from './CardDisplay';
 import { ScorePanel, CoinSVG } from './ScorePanel';
+import { computeSeasonScore } from '../../shared/scoring';
 import type { PlayerContext, RoomContext } from '../types';
 
 interface Props {
@@ -47,8 +48,8 @@ export function GameRoom({ player, room, onLeave, onLogout }: Props) {
 
   // When a new round starts, feed the card into the placement state machine
   useEffect(() => {
-    if (round?.currentCard) {
-      dispatch({ type: 'CARD_RECEIVED', card: round.currentCard });
+    if (round?.currentCard && myState?.grid) {
+      dispatch({ type: 'CARD_RECEIVED', card: round.currentCard, grid: myState.grid });
     }
   }, [round?.roundNumber]);
 
@@ -83,6 +84,7 @@ export function GameRoom({ player, room, onLeave, onLogout }: Props) {
   const shapeIndex = placementState.phase === 'selecting' ? placementState.shapeIndex : -1;
   const variantIndex = placementState.phase === 'selecting' ? placementState.variantIndex : 0;
   const terrain = placementState.phase === 'selecting' ? placementState.terrain : null;
+  const noValidPlacement = placementState.phase === 'selecting' ? placementState.noValidPlacement : false;
 
   // During ambush, preview and validate against the target's grid (opponent, or self in solo)
   const isAmbush = card?.terrain === 'monster';
@@ -90,17 +92,38 @@ export function GameRoom({ player, room, onLeave, onLogout }: Props) {
   const opponentGrid = opponentPlayer ? gameState?.playerStates[opponentPlayer.id]?.grid : undefined;
   const targetGrid = isAmbush ? (opponentGrid ?? myGrid) : myGrid;
 
+  // Live season score — recalculated whenever the grid or round changes
+  const liveScore =
+    myGrid && round?.scoringCards
+      ? computeSeasonScore(myGrid, round.scoringCards)
+      : 0;
+
   function handleConfirm() {
     if (placementState.phase !== 'selecting' || !placementState.locked || !placementState.valid) return;
     if (!round) return;
 
     const { card, shapeIndex, variantIndex, anchorRow, anchorCol, terrain } = placementState;
     if (anchorRow === null || anchorCol === null) return;
+
+    // Forced single-cell fallback
+    if (noValidPlacement) {
+      const payload: PlacementPayload = {
+        shapeIndex: 0,
+        variantIndex: 0,
+        origin: [anchorRow, anchorCol],
+        terrain: terrain ?? undefined,
+        forcedSingle: true,
+      };
+      send({ type: 'place_terrain', payload });
+      dispatch({ type: 'CONFIRM' });
+      return;
+    }
+
     const payload: PlacementPayload = {
       shapeIndex,
       variantIndex,
       origin: [anchorRow, anchorCol],
-      terrain,
+      terrain: terrain ?? undefined,
     };
 
     if (card.terrain === 'monster') {
@@ -169,13 +192,16 @@ export function GameRoom({ player, room, onLeave, onLogout }: Props) {
           {/* Playing */}
           {gameState.phase === 'playing' && round && myGrid && (
             <div className="game-board">
-              {/* Sub-header: season/round info + coin counter + score button */}
+              {/* Sub-header: season/round info + live score + coin counter + score button */}
               <div className="round-header">
                 <div className="round-header__left">
                   <span className="round-header__season">{SEASON_LABELS[round.season]}</span>
                   <span className="round-header__round">Round {round.roundNumber}</span>
                   <span className="round-header__time">
                     {round.elapsedTime} / {[8, 8, 7, 6][round.seasonIndex]}
+                  </span>
+                  <span className="round-header__live-score" title="Projected score this season">
+                    ~{liveScore} pts
                   </span>
                 </div>
                 {myState && (
@@ -195,12 +221,13 @@ export function GameRoom({ player, room, onLeave, onLogout }: Props) {
                 )}
               </div>
 
-              {card && terrain && (
+              {card && terrain !== null && (
                 <CardDisplay
                   card={card}
                   selectedShapeIndex={shapeIndex}
                   variantIndex={variantIndex}
                   terrain={terrain}
+                  noValidPlacement={noValidPlacement}
                   onSetTerrain={(t) => dispatch({ type: 'SET_TERRAIN', terrain: t })}
                   onSelectShape={(i) => dispatch({ type: 'SELECT_SHAPE', index: i, grid: targetGrid ?? myGrid })}
                   onRotate={() => dispatch({ type: 'ROTATE', grid: targetGrid ?? myGrid })}
@@ -252,6 +279,8 @@ export function GameRoom({ player, room, onLeave, onLogout }: Props) {
                 <ScorePanel
                   playerState={myState}
                   currentSeasonIndex={round.seasonIndex}
+                  liveScore={liveScore}
+                  scoringCards={round.scoringCards}
                   onClose={() => setScoreOpen(false)}
                 />
               )}

@@ -1,7 +1,7 @@
 import { useReducer } from 'react';
 import type { AmbushCard, Card, ExploreCard, Grid, ShapeCoords, TerrainType } from '../../worker/types';
 import { getVariants } from '../lib/shapes';
-import { isValidPlacement, resolveCoords } from '../lib/grid';
+import { isValidPlacement, resolveCoords, hasAnyValidPlacement } from '../lib/grid';
 
 // ---------------------------------------------------------------------------
 // State types
@@ -21,6 +21,8 @@ export type SelectingState = {
   locked: boolean;
   /** null = no anchor yet; true/false = last computed validity */
   valid: boolean | null;
+  /** true when no valid shape placement exists — player must place 1 free cell */
+  noValidPlacement: boolean;
 };
 
 type SubmittedState = { phase: 'submitted' };
@@ -32,7 +34,7 @@ export type PlacementState = IdleState | SelectingState | SubmittedState;
 // ---------------------------------------------------------------------------
 
 export type PlacementAction =
-  | { type: 'CARD_RECEIVED'; card: Card }
+  | { type: 'CARD_RECEIVED'; card: Card; grid: Grid }
   | { type: 'SELECT_SHAPE'; index: number; grid?: Grid }
   | { type: 'SET_TERRAIN'; terrain: TerrainType }
   | { type: 'ROTATE'; grid?: Grid }
@@ -69,6 +71,12 @@ function computeValid(
   return isValidPlacement(grid, coords, [anchorRow, anchorCol], card.terrain);
 }
 
+/** In forced-single mode, any empty (non-mountain) cell is valid. */
+function computeValidForcedSingle(grid: Grid, row: number, col: number): boolean {
+  const cell = grid[row]?.[col];
+  return !!cell && cell.terrain === 'empty';
+}
+
 // ---------------------------------------------------------------------------
 // Reducer
 // ---------------------------------------------------------------------------
@@ -76,6 +84,7 @@ function computeValid(
 function reducer(state: PlacementState, action: PlacementAction): PlacementState {
   switch (action.type) {
     case 'CARD_RECEIVED': {
+      const noValidPlacement = !hasAnyValidPlacement(action.grid, action.card);
       return {
         phase: 'selecting',
         card: action.card,
@@ -86,6 +95,7 @@ function reducer(state: PlacementState, action: PlacementAction): PlacementState
         anchorCol: null,
         locked: false,
         valid: null,
+        noValidPlacement,
       };
     }
 
@@ -133,7 +143,9 @@ function reducer(state: PlacementState, action: PlacementAction): PlacementState
     case 'POINTER_MOVE': {
       if (state.phase !== 'selecting') return state;
       const { row, col, grid } = action;
-      const valid = computeValid(state.card, state.shapeIndex, state.variantIndex, row, col, grid);
+      const valid = state.noValidPlacement
+        ? computeValidForcedSingle(grid, row, col)
+        : computeValid(state.card, state.shapeIndex, state.variantIndex, row, col, grid);
       // Moving unlocks so the confirm button only re-appears on a fresh click
       return { ...state, anchorRow: row, anchorCol: col, locked: false, valid };
     }
@@ -141,7 +153,9 @@ function reducer(state: PlacementState, action: PlacementAction): PlacementState
     case 'POINTER_UP': {
       if (state.phase !== 'selecting') return state;
       const { row, col, grid } = action;
-      const valid = computeValid(state.card, state.shapeIndex, state.variantIndex, row, col, grid);
+      const valid = state.noValidPlacement
+        ? computeValidForcedSingle(grid, row, col)
+        : computeValid(state.card, state.shapeIndex, state.variantIndex, row, col, grid);
       return { ...state, anchorRow: row, anchorCol: col, locked: true, valid };
     }
 
@@ -184,10 +198,19 @@ export function getGhostInfo(
     return { ghostCoords: undefined, ghostTerrain: undefined, ghostValid: undefined };
   }
 
-  const { card, shapeIndex, variantIndex, terrain, anchorRow, anchorCol, valid } = placementState;
+  const { card, shapeIndex, variantIndex, terrain, anchorRow, anchorCol, valid, noValidPlacement } = placementState;
 
   if (anchorRow === null || anchorCol === null) {
     return { ghostCoords: undefined, ghostTerrain: terrain, ghostValid: undefined };
+  }
+
+  // In forced-single mode, ghost is just the single clicked cell
+  if (noValidPlacement) {
+    return {
+      ghostCoords: [[anchorRow, anchorCol]],
+      ghostTerrain: terrain,
+      ghostValid: valid ?? undefined,
+    };
   }
 
   const shape = getShapeCoords(card, shapeIndex);

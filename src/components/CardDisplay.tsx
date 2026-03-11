@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import type { AmbushCard, Card, ExploreCard, ShapeCoords, TerrainType } from '../../worker/types';
-import { getVariants } from '../lib/shapes';
+import { getVariants, shapeGivesCoins } from '../lib/shapes';
 import { TerrainCellContents, TerrainCell } from '../lib/terrainIcons';
+import { CoinSVG } from './ScorePanel';
 
 // ── Terrain picker options ────────────────────────────────────────────────────
 
@@ -100,6 +101,7 @@ interface CardDisplayProps {
   selectedShapeIndex: number; // -1 = nothing selected yet
   variantIndex: number;
   terrain: TerrainType;
+  noValidPlacement: boolean;
   onSetTerrain: (t: TerrainType) => void;
   onSelectShape: (index: number) => void;
   onRotate: () => void;
@@ -111,6 +113,7 @@ export function CardDisplay({
   selectedShapeIndex,
   variantIndex,
   terrain,
+  noValidPlacement,
   onSetTerrain,
   onSelectShape,
   onRotate,
@@ -140,60 +143,86 @@ export function CardDisplay({
         {isAmbush && <span className="card-strip__ambush">Place on opponent's map</span>}
       </div>
 
-      {/* 5-button toolbar */}
+      {/* 5-button toolbar (or forced-single banner) */}
       <div className="card-toolbar">
-        {/* Shape buttons */}
-        {shapes.map((shape, i) => {
-          const isSelected = selectedShapeIndex >= 0 && i === selectedShapeIndex;
-          const preview = isSelected ? activeVariant : (shapeVariants[i]?.[0] ?? shape);
-          return (
+        {noValidPlacement ? (
+          /* No valid shape placement — show banner + terrain picker only */
+          <>
+            <div className="card-toolbar__no-placement">
+              No room for any shape — click any empty cell to place 1 tile
+            </div>
             <button
-              key={i}
-              className={`card-toolbar__btn card-toolbar__shape${isSelected ? ' card-toolbar__btn--active' : ''}`}
-              onClick={() => onSelectShape(i)}
-              title={`Shape ${i + 1}`}
-              aria-pressed={isSelected}
+              className="card-toolbar__btn card-toolbar__terrain"
+              onClick={() => setPickerOpen(true)}
+              title="Choose terrain"
+              aria-label={`Terrain: ${terrain}`}
             >
-              <MiniShapeGrid coords={preview} terrain={terrain} />
+              <TerrainCell terrain={terrain} size={30} />
             </button>
-          );
-        })}
+          </>
+        ) : (
+          <>
+            {/* Shape buttons */}
+            {shapes.map((shape, i) => {
+              const isSelected = selectedShapeIndex >= 0 && i === selectedShapeIndex;
+              const preview = isSelected ? activeVariant : (shapeVariants[i]?.[0] ?? shape);
+              const givesCoins = !isAmbush && exploreCard ? shapeGivesCoins(exploreCard, i) : false;
+              return (
+                <button
+                  key={i}
+                  className={`card-toolbar__btn card-toolbar__shape${isSelected ? ' card-toolbar__btn--active' : ''}`}
+                  onClick={() => onSelectShape(i)}
+                  title={givesCoins ? `Shape ${i + 1} (+1 coin)` : `Shape ${i + 1}`}
+                  aria-pressed={isSelected}
+                  style={{ position: 'relative' }}
+                >
+                  <MiniShapeGrid coords={preview} terrain={terrain} />
+                  {givesCoins && (
+                    <span className="shape-coin-badge" aria-label="+1 coin">
+                      <CoinSVG size={13} />
+                    </span>
+                  )}
+                </button>
+              );
+            })}
 
-        {/* Placeholder if only 1 shape */}
-        {shapes.length === 1 && (
-          <div className="card-toolbar__btn card-toolbar__placeholder" aria-hidden />
+            {/* Placeholder if only 1 shape */}
+            {shapes.length === 1 && (
+              <div className="card-toolbar__btn card-toolbar__placeholder" aria-hidden />
+            )}
+
+            {/* Terrain picker button — shows a TerrainCell preview */}
+            <button
+              className="card-toolbar__btn card-toolbar__terrain"
+              onClick={() => setPickerOpen(true)}
+              title="Choose terrain"
+              aria-label={`Terrain: ${terrain}`}
+              disabled={isAmbush}
+            >
+              <TerrainCell terrain={terrain} size={30} />
+            </button>
+
+            {/* Rotate */}
+            <button
+              className="card-toolbar__btn card-toolbar__icon"
+              onClick={onRotate}
+              title="Rotate 90°"
+              aria-label="Rotate"
+            >
+              <RotateIcon />
+            </button>
+
+            {/* Flip */}
+            <button
+              className="card-toolbar__btn card-toolbar__icon"
+              onClick={onReflect}
+              title="Flip horizontal"
+              aria-label="Flip"
+            >
+              <FlipIcon />
+            </button>
+          </>
         )}
-
-        {/* Terrain picker button — shows a TerrainCell preview */}
-        <button
-          className="card-toolbar__btn card-toolbar__terrain"
-          onClick={() => setPickerOpen(true)}
-          title="Choose terrain"
-          aria-label={`Terrain: ${terrain}`}
-          disabled={isAmbush}
-        >
-          <TerrainCell terrain={terrain} size={30} />
-        </button>
-
-        {/* Rotate */}
-        <button
-          className="card-toolbar__btn card-toolbar__icon"
-          onClick={onRotate}
-          title="Rotate 90°"
-          aria-label="Rotate"
-        >
-          <RotateIcon />
-        </button>
-
-        {/* Flip */}
-        <button
-          className="card-toolbar__btn card-toolbar__icon"
-          onClick={onReflect}
-          title="Flip horizontal"
-          aria-label="Flip"
-        >
-          <FlipIcon />
-        </button>
       </div>
 
       {pickerOpen && (
