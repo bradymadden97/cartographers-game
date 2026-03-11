@@ -165,6 +165,9 @@ header {
   display: flex;
   align-items: center;
   padding: 0.3rem 0.6rem;
+  padding-top: calc(0.3rem + env(safe-area-inset-top));
+  padding-left: calc(0.6rem + env(safe-area-inset-left));
+  padding-right: calc(0.6rem + env(safe-area-inset-right));
   background: var(--surface);
   gap: 0.5rem;
   border-bottom: 1px solid var(--primary);
@@ -596,7 +599,7 @@ main {
   background: var(--surface);
   border-top: 2px solid var(--primary);
   border-radius: 16px 16px 0 0;
-  padding: 0.75rem 1.25rem 2rem;
+  padding: 0.75rem 1.25rem calc(2rem + env(safe-area-inset-bottom));
   z-index: 101;
   display: flex;
   flex-direction: column;
