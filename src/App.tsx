@@ -1,8 +1,10 @@
+import { useState, useMemo } from 'react';
 import { usePathname, navigate } from './router';
 import { getSessionId, getSessionName, setSessionName, clearSession } from './session';
 import { Landing } from './components/Landing';
 import { GameRoom } from './components/GameRoom';
 import type { PlayerContext, RoomContext } from './types';
+import { getOrCreateAiPlayers } from './lib/dev-players';
 
 function parseRoute(
   pathname: string,
@@ -19,6 +21,9 @@ export default function App() {
   const pathname = usePathname();
   const route = parseRoute(pathname);
   const savedName = getSessionName();
+  const [activePlayer, setActivePlayer] = useState<PlayerContext | null>(null);
+  // Stable AI player profiles for the lifetime of the app session.
+  const aiPlayers = useMemo(() => getOrCreateAiPlayers(), []);
 
   if (!route) {
     navigate('/');
@@ -30,14 +35,23 @@ export default function App() {
       navigate(`/?join=${route.roomId}`);
       return null;
     }
-    const player: PlayerContext = { id: getSessionId(), name: savedName };
+    const defaultPlayer: PlayerContext = { id: getSessionId(), name: savedName };
+    const currentPlayer = activePlayer ?? defaultPlayer;
+    // All switchable personas: the real player + the 3 AI players.
+    const devPlayers: PlayerContext[] = [defaultPlayer, ...aiPlayers];
     const room: RoomContext = { roomId: route.roomId, mode: route.mode };
     return (
       <GameRoom
-        player={player}
+        player={currentPlayer}
         room={room}
-        onLeave={() => navigate('/')}
+        devPlayers={route.mode === 'remote' ? devPlayers : undefined}
+        onSwitchPlayer={setActivePlayer}
+        onLeave={() => {
+          setActivePlayer(null);
+          navigate('/');
+        }}
         onLogout={() => {
+          setActivePlayer(null);
           clearSession();
           navigate('/');
         }}

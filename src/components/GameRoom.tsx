@@ -16,8 +16,19 @@ import type { PlayerContext, RoomContext } from "../types";
 interface Props {
   player: PlayerContext;
   room: RoomContext;
+  /** DEV: all switchable personas (real player + AI players). Remote mode only. */
+  devPlayers?: PlayerContext[];
+  /** DEV: callback to switch the active persona. */
+  onSwitchPlayer?: (player: PlayerContext) => void;
   onLeave: () => void;
   onLogout: () => void;
+}
+
+function getAiWsUrl(roomId: string, playerId: string): string {
+  const params = `?session=${playerId}`;
+  if (import.meta.env.DEV) return `ws://localhost:8787/ws/${roomId}${params}`;
+  const proto = location.protocol === "https:" ? "wss" : "ws";
+  return `${proto}://${location.host}/ws/${roomId}${params}`;
 }
 
 const SEASON_LABELS: Record<string, string> = {
@@ -27,11 +38,12 @@ const SEASON_LABELS: Record<string, string> = {
   winter: "❄️ Winter",
 };
 
-export function GameRoom({ player, room, onLeave, onLogout }: Props) {
+export function GameRoom({ player, room, devPlayers, onSwitchPlayer, onLeave, onLogout }: Props) {
   const { gameState, status, error, send } = useGameSocket(
     room.roomId,
     player.name,
     room.mode,
+    player.id,
   );
   const { placementState, dispatch } = usePlacement();
   const [scoreOpen, setScoreOpen] = useState(false);
@@ -39,6 +51,44 @@ export function GameRoom({ player, room, onLeave, onLogout }: Props) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  // DEV: hold open WebSocket connections for AI players so they stay in the
+  // waiting room until the game starts (disconnect only removes players during
+  // the 'waiting' phase, so we can safely close after the game begins).
+  const aiSocketsRef = useRef<WebSocket[]>([]);
+
+  useEffect(() => {
+    const aiPlayers = devPlayers?.slice(1); // skip index 0 (the real player)
+    if (room.mode !== "remote" || !aiPlayers?.length) return;
+
+    const sockets: WebSocket[] = [];
+    for (const ai of aiPlayers) {
+      const ws = new WebSocket(getAiWsUrl(room.roomId, ai.id));
+      ws.addEventListener("open", () => {
+        ws.send(JSON.stringify({ type: "join", name: ai.name }));
+      });
+      sockets.push(ws);
+    }
+    aiSocketsRef.current = sockets;
+
+    return () => {
+      aiSocketsRef.current = [];
+      sockets.forEach((ws) => ws.close());
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [room.roomId, room.mode]); // intentionally run once per room
+
+  // Once the game is in progress, the AI connections are no longer needed
+  // (player state is preserved server-side after disconnect during a game).
+  useEffect(() => {
+    if (gameState?.phase === "playing" || gameState?.phase === "finished") {
+      const sockets = aiSocketsRef.current;
+      if (sockets.length > 0) {
+        sockets.forEach((ws) => ws.close());
+        aiSocketsRef.current = [];
+      }
+    }
+  }, [gameState?.phase]);
 
   const myPlayer = gameState?.players.find(
     (p: PlayerInfo) => p.id === player.id,
@@ -216,6 +266,24 @@ export function GameRoom({ player, room, onLeave, onLogout }: Props) {
           {menuOpen && (
             <div className="dropdown">
               <div className="dropdown__name">{player.name}</div>
+              {devPlayers && devPlayers.length > 1 && onSwitchPlayer && (
+                <>
+                  <hr className="dropdown__divider" />
+                  <div className="dropdown__section">Switch persona</div>
+                  {devPlayers.map((p) => (
+                    <button
+                      key={p.id}
+                      className={`dropdown__item${p.id === player.id ? " dropdown__item--active" : ""}`}
+                      onClick={() => {
+                        setMenuOpen(false);
+                        onSwitchPlayer(p);
+                      }}
+                    >
+                      {p.name}
+                    </button>
+                  ))}
+                </>
+              )}
               <hr className="dropdown__divider" />
               <button
                 className="dropdown__item"
