@@ -12,7 +12,7 @@ jobs:
     name: Await Approval
     runs-on: ubuntu-latest
     environment: pr-preview
-    if: github.event.pull_request.user.login != 'bradymadden97'
+    if: github.event.pull_request.user.login != 'bradymadden97' && github.actor != 'bradymadden97'
     steps:
       - run: echo "Deployment approved"
 
