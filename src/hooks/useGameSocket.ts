@@ -4,9 +4,8 @@ import type { GameTransport } from '../../shared/transport';
 import { FakeWebSocket } from '../lib/local-transport';
 import { getSessionId } from '../session';
 
-function getWsUrl(roomId: string): string {
-  const sessionId = getSessionId();
-  const params = `?session=${sessionId}`;
+function getWsUrl(roomId: string, playerId: string): string {
+  const params = `?session=${playerId}`;
   if (import.meta.env.DEV) return `ws://localhost:8787/ws/${roomId}${params}`;
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
   return `${proto}://${location.host}/ws/${roomId}${params}`;
@@ -23,6 +22,7 @@ export function useGameSocket(
   roomId: string,
   playerName: string,
   mode: 'remote' | 'local' = 'remote',
+  playerId: string = getSessionId(),
 ) {
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [status, setStatus] = useState<SocketStatus>('connecting');
@@ -33,8 +33,10 @@ export function useGameSocket(
   // Keep refs in sync so async callbacks always use the latest values.
   const roomIdRef = useRef(roomId);
   const playerNameRef = useRef(playerName);
+  const playerIdRef = useRef(playerId);
   roomIdRef.current = roomId;
   playerNameRef.current = playerName;
+  playerIdRef.current = playerId;
 
   useEffect(() => {
     let destroyed = false;
@@ -42,11 +44,11 @@ export function useGameSocket(
     function createTransport(): GameTransport {
       if (mode === 'local') {
         // Offline / single-player: game engine runs in a local Web Worker.
-        return new FakeWebSocket(roomIdRef.current, getSessionId());
+        return new FakeWebSocket(roomIdRef.current, playerIdRef.current);
       }
       // Multiplayer: real WebSocket to the Cloudflare Durable Object.
       // WebSocket satisfies the GameTransport interface structurally.
-      return new WebSocket(getWsUrl(roomIdRef.current)) as unknown as GameTransport;
+      return new WebSocket(getWsUrl(roomIdRef.current, playerIdRef.current)) as unknown as GameTransport;
     }
 
     function connect() {
@@ -141,7 +143,7 @@ export function useGameSocket(
         t.close();
       }
     };
-  }, [roomId, playerName, mode]);
+  }, [roomId, playerName, mode, playerId]);
 
   function send(msg: ClientMessage) {
     if (transportRef.current?.readyState === WS_OPEN) {
