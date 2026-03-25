@@ -7,6 +7,7 @@ export default defineConfig({
     outDir: 'dist',
   },
   server: {
+    host: true,
     proxy: {
       '/ws': {
         target: 'ws://localhost:8787',
